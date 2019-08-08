@@ -24,11 +24,16 @@
 #' @export
 
 mlestimate <- function(xi, L=2, method='pseudo', lambda=0, 
-                       symmetrize=TRUE, eps=1){
+                       symmetrize=TRUE, eps=1, nprint=100, itmax=10000,
+                       tolerance=1e-5, verbose=1){
   
   if(method=='pseudo'){
     Lambda <- c(lambda)
-    theta <- pseudo_mle(xi, L, Lambda)
+    Nprint <- c(nprint)
+    Itmax <- c(itmax)
+    Tol <- c(tolerance)
+    Verbose <- c(verbose)
+    theta <- pseudo_mle(xi, L, Lambda, Nprint, Itmax, Tol, Verbose)
   } else if(method=='mft'){
     theta <- mle_mft(xi=xi, L=L, dmax=dmax, eps=eps)
   } else stop('unknown method in mlestimate')

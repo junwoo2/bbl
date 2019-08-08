@@ -1,0 +1,15 @@
+Package: BBM
+Type: Package
+Title: Bayesian Boltmann Machine Learner
+Version: 0.1.0
+Authors@R: c(person('Jun','Woo',role=c('aut','cre'),email='jwoo@umn.edu'))
+Description: Supervised learning using Bayesian Boltmann machine
+Depends: R (>= 3.6.0)
+License: GPL
+Imports: Rcpp (>= 0.12.16),
+         pROC
+LinkingTo: Rcpp
+Encoding: UTF-8
+RoxygenNote: 6.1.1
+NeedsCompilation: yes
+Packaged: 2018-03-26 23:08:30 UTC; jun

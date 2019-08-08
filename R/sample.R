@@ -36,10 +36,20 @@ enum <- function(si, L, i, h, J, e=NULL){
 #' @param h field parameter
 #' @param J Coupling parameters. List of length equal to maximum distance. 
 #'          d'th element is a square matrix of dimension d.
+#' @param numeric Return numeric code of factors minus 1 (0,...,L-1)
 #' @export
-sample_si <- function(nsample=1, L=2, nrepl=1, nsite, h, J, mc=FALSE,
-                      nstep=1000, progress.bar=TRUE){
+sample_si <- function(nsample=1, predictors=c('0','1'), 
+                      nrepl=1, nsite, h, J, mc=FALSE,
+                      nstep=1000, progress.bar=TRUE, numeric=FALSE){
 
+  if(!is.character(predictors)) 
+    predictors <- as.character(predictors)
+  predictors <- unique(predictors)
+  L <- length(predictors)
+  
+  if(!all(predictors[-1]==colnames(h))) 
+    stop("Predictors and h column names don't match")
+  
   if(!mc){
     if(NROW(h)!=nsite | NCOL(h)!=L-1 | length(J)!=nsite |
        !all(dim(J[[1]][[2]])==c(L-1,L-1)))
@@ -60,7 +70,11 @@ sample_si <- function(nsample=1, L=2, nrepl=1, nsite, h, J, mc=FALSE,
     sid <- sample(nstep,size=nsample, replace=FALSE)
     si <- mc[sid,]
   }
+  
+  if(!numeric)
+    si <- as.data.frame(matrix(predictors[si+1], nrow=nsample, ncol=nsite))
   rownames(si) <- seq_len(nsample)
+  colnames(si) <- seq_len(nsite)
   return(si)
 }
 
@@ -106,12 +120,20 @@ energy <- function(i, si, h, J){
 }
 
 #' @export
-GenRandomPar <- function(m, L=2, h0=0, dh=1, J0=0, dJ=1, distr='unif'){
+GenRandomPar <- function(m, predictors=NULL, L=NULL, h0=0, dh=1, J0=0, dJ=1, 
+                         distr='unif'){
+  
+  if(!is.null(predictors)){
+    predictors <- unique(predictors)
+    L <- length(predictors)
+  } else if(is.null(L)) stop('Either predictors or L must be given')
   
   if(distr=='unif')
     h <- matrix(runif(n=m*(L-1),min=h0-dh,max=h0+dh), nrow=m, ncol=L-1)
   else
     h <- matrix(rnorm(n=m*(L-1),mean=h0, sd=dh), nrow=m, ncol=L-1)
+  if(!is.null(predictors))
+    colnames(h) <- predictors[-1]
   J <- vector('list',m)
   for(i in seq_len(m)) J[[i]] <- vector('list',m)
 
@@ -122,6 +144,7 @@ GenRandomPar <- function(m, L=2, h0=0, dh=1, J0=0, dJ=1, distr='unif'){
       else x <- rnorm(n=(L-1)^2, mean=J0, sd=dJ)
     }
     x <- matrix(x, nrow=L-1, ncol=L-1)
+    if(!is.null(predictors)) rownames(x) <- colnames(x) <- predictors[-1]
     J[[i]][[j]] <- x
     if(i!=j) J[[j]][[i]] <- t(x)
   }

@@ -9,13 +9,12 @@
 #include "bfgs.h"
 
 using namespace std;
-const int Npr=100;
 
-void pan3(vector<double> &peff, int nsnp, int i0, int L, const vector<short> &ci,
-  vector<double> h1, const vector<vector<double> > &J1){
+void pan3(vector<double> &peff, int nsnp, int i0, int L, 
+          const vector<short> &ci, vector<double> h1, 
+          const vector<vector<double> > &J1){
 
   peff.resize(L);
-  double z=1;
   for(int a=0;a<L;a++){
     double e=h1[a];
     for(int j=0;j< nsnp;j++){
@@ -24,7 +23,14 @@ void pan3(vector<double> &peff, int nsnp, int i0, int L, const vector<short> &ci
       if(b==0) continue;
       e+=J1[j][L*a+b-1];
     }
-    peff[a]=exp(e);
+    peff[a]=e;
+  }
+  double max=0;
+  for(int a=0;a<L;a++)
+    if(peff[a]>max) max=peff[a];
+  double z = exp(-max);
+  for(int a=0;a<L;a++){
+    peff[a] = exp(peff[a]-max);
     z+=peff[a];
   }
   for(int a=0;a<L;a++)
@@ -75,7 +81,7 @@ double lnl_psl(const gsl_vector *v,void *params){  // evaluates log likelihood
   ln=0;
   for(int n=0;n<nind;n++){
     double p=pan2(nsnp,i0,L,(par->ai)[n],h1,J1);
-    ln += -log(p);                      // -log(L)
+    ln += -log(p);
   }
   ln /= nind;
 
@@ -157,7 +163,6 @@ void dlnl_psl(const gsl_vector *v,void *params,gsl_vector *df){   // first deriv
         gsl_vector_set(df,m++,s2[i][L*l0+l1]);
     }
   }
-//  cout << m << endl;
 }
 
 void ln_dln_psl(const gsl_vector *x,void *params,double *f,gsl_vector *df){
@@ -168,7 +173,8 @@ void ln_dln_psl(const gsl_vector *x,void *params,double *f,gsl_vector *df){
 }
 
 double lpr_psl(int i0, const vector<vector<short> > &ai, int L, double lambda, 
-               vector<double> &h, vector<vector<double> > &J){
+               vector<double> &h, vector<vector<double> > &J, int nprint, 
+               unsigned int Imax, double Tol, int verbose){
 
   size_t iter=0;
   int status;
@@ -203,12 +209,12 @@ double lpr_psl(int i0, const vector<vector<short> > &ai, int L, double lambda,
   gsl_vector_set_zero(x);  // initial guess
 
   gsl_multimin_fdfminimizer_set(s,&my_func,x,0.1,0.1);
-  
+
   iter=0;
   do{
       iter++;
       status=gsl_multimin_fdfminimizer_iterate(s);
-      if(iter%Npr==0)
+      if(iter%nprint==0 & verbose>0)
         cout << "  iteration # " << iter << ": " << s->f << endl;
       if(status){
         cerr << " GSL status code " << status << endl;
@@ -219,7 +225,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai, int L, double lambda,
   if(iter==Imax)
     cerr << "BFGS2 iteration failed to converge after " 
          << Imax << " iterations\n";
-  cout << " Site " << i0+1 << ": " << iter 
+  if(verbose > 0) cout << " Site " << i0+1 << ": " << iter 
        << " iterations, likelihood = " << s->f << endl;
 
   h.resize(L);
@@ -256,7 +262,7 @@ void f12(int i0, const vector<vector<short> > &si, vector<double> &f1,
     f2[i].resize(L*L);
     for(int l=0; l<L; l++) f1[l]=0; 
     for(int l0=0; l0<L; l0++) for(int l1=0; l1<L; l1++)
-      f2[i][2*l0+l1]=0;
+      f2[i][L*l0+l1]=0;
   }
   for(int k=0; k<n; k++){
     short a=si[k][i0];
@@ -266,7 +272,7 @@ void f12(int i0, const vector<vector<short> > &si, vector<double> &f1,
       if(j==i0) continue;
       short b=si[k][j];
       if(b==0) continue;
-      f2[j][2*(a-1)+b-1]++;
+      f2[j][L*(a-1)+b-1]++;
     }
   }
   for(int l0=0; l0<L; l0++){ 
@@ -275,16 +281,15 @@ void f12(int i0, const vector<vector<short> > &si, vector<double> &f1,
       if(i0==j){
         for(int l1=0; l1<L; l1++){
           if(l0==l1)
-            f2[j][2*l0+l1]=f1[l0];
+            f2[j][L*l0+l1]=f1[l0];
           else
-            f2[j][2*l0+l1]=0;
+            f2[j][L*l0+l1]=0;
         }
       }
       else{
         for(int l1=0; l1<L; l1++)
-          f2[j][2*l0+l1]/=n;
+          f2[j][L*l0+l1]/=n;
       }
     }
   }
-//  std::cout << "\n";
 }

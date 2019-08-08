@@ -4,7 +4,9 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-List pseudo_mle(NumericMatrix xi, IntegerVector L, NumericVector Lambda){
+List pseudo_mle(NumericMatrix xi, IntegerVector L, NumericVector Lambda,
+                IntegerVector Nprint, IntegerVector Itmax, NumericVector Tol,
+                IntegerVector Verbose){
   
   int n = xi.nrow();
   int m = xi.ncol();
@@ -17,10 +19,15 @@ List pseudo_mle(NumericMatrix xi, IntegerVector L, NumericVector Lambda){
   
   int Lv = L[0]-1;
   double lambda = Lambda[0];
+  int nprint = Nprint[0];
+  unsigned int Imax = Itmax[0];
+  double tol = Tol[0];
+  int verbose = Verbose[0];
   
   double lkl = 0;
   for(int i0=0; i0<m; i0++)
-    lkl += lpr_psl(i0, sv, Lv, lambda, h[i0], J[i0]);
+    lkl += lpr_psl(i0, sv, Lv, lambda, h[i0], J[i0], nprint, Imax, tol,
+                   verbose);
   lkl /= n;
   
   List x = List::create(Named("h") = h, Named("J") = J, 

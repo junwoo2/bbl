@@ -1,5 +1,5 @@
-const double Tol = 1e-5;
-const int Imax = 1000;
+const int Imax=10000;
+const double Tol=1e-5;
 struct Param{  
   int i0;   // central site index
   const std::vector<std::vector<short> > &ai;
@@ -23,7 +23,9 @@ void dlnl_psl(const gsl_vector *v, void *params, gsl_vector *df);
 void ln_dln_psl(const gsl_vector *x, void *params, double *f, gsl_vector *df);
 
 double lpr_psl(int i0, const std::vector<std::vector<short> > &si, int L, 
-    double lambda, std::vector<double> &h, std::vector<std::vector<double> > &J);
+    double lambda, std::vector<double> &h, 
+    std::vector<std::vector<double> > &J, int nprint,
+    unsigned int imax, double tol, int verbose);
 
 double pan2(int nsnp, int i0, int L, const std::vector<short> &ci, 
     const std::vector<double> &h1, const std::vector<std::vector<double> > &J1);
