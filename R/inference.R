@@ -1,13 +1,23 @@
 #' Train cRfm model 
+#' @param lambda Penalizer
+#' @param object \code{bbm} object for model
 #' @param data Data frame of training data. The column named \code{y} is
 #'             used as group variables
+#' @param naive Naive Bayes (no interaction; \code{J}=0)
+#' @param verbose Output verbosity
 #' @export
-train <- function(object, method='pseudo', lambda=0, data=NULL, 
+train <- function(object, method='pseudo', lambda=0, L=NULL, data=NULL, naive=FALSE,
                   verbose=1){
   
   predictors <- object@predictors
   groups <- object@groups
-  L <- length(predictors)
+  if(identical(predictors, 'numeric')){
+    numeric <- TRUE
+    if(is.null(L)) stop('Numeric model requires L input')
+  }else{
+    numeric <- FALSE
+    L <- length(predictors)
+  }
   Ly <- length(groups)
   nsite <- object@nsite
   
@@ -16,27 +26,32 @@ train <- function(object, method='pseudo', lambda=0, data=NULL,
   else if(!'y' %in% colnames(data)) stop("Data must contain column 'y'")
   
   xi <- data[,colnames(data)!='y']
+  if(numeric) if(max(xi)>=L) stop('Numeric model data must have 0 <= xi <= L-1')
   y <- data$y
   
   if(nsite!=NCOL(xi)) stop('No. of columns in data does not match nsite')
   
   object@h <- object@J <- vector('list',Ly)
-  
+
   for(iy in seq_len(Ly)){
     id <- which(y==groups[iy])
     xid <- xi[id,]
-    if(verbose>0) cat('Inference for class y = ',groups[iy],':\n',sep='')
-    xidi <- matrix(0, nrow=NROW(xid), ncol=NCOL(xid))
-    for(i in seq_len(NCOL(xidi)))
-      xidi[,i] <- match(xid[,i],predictors) - 1   # xidi = 0, ..., L-1
-    mle <- mlestimate(xi=xidi, L=L, lambda=lambda, method=method, verbose=verbose)
-    if(verbose>0) cat('Maximum pseudo-likelihood = ',mle$mle,'\n\n',sep='')
+    if(verbose>0) cat('  Inference for class y = ',groups[iy],':\n',sep='')
+    if(numeric){ 
+      if(!is.numeric(xid[1,1])) stop('Numeric model requires numeric data')
+      xidi <- as.matrix(xid)
+    } else{
+      xidi <- matrix(0, nrow=NROW(xid), ncol=NCOL(xid))
+      for(i in seq_len(NCOL(xidi)))
+        xidi[,i] <- match(xid[,i],predictors) - 1   # xidi = 0, ..., L-1
+    }
+    mle <- mlestimate(xi=xidi, L=L, numeric=numeric, lambda=lambda, 
+                      method=method, verbose=verbose-1, naive=naive)
+    if(verbose>0) cat('  Maximum pseudo-likelihood = ',mle$mle,'\n\n',sep='')
     object@h[[iy]] <- mle$h
     object@J[[iy]] <- mle$J
   }
   
   object@data <- data
-  
   return(object)
-  
 } 

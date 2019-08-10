@@ -1,4 +1,4 @@
-Package: BBM
+Package: bbm
 Type: Package
 Title: Bayesian Boltmann Machine Learner
 Version: 0.1.0

@@ -10,18 +10,18 @@
 
 using namespace std;
 
-void pan3(vector<double> &peff, int nsnp, int i0, int L, 
+void pan3(vector<double> &peff, int nsnp, int i0, int L, int Lp,
           const vector<short> &ci, vector<double> h1, 
-          const vector<vector<double> > &J1){
+          const vector<vector<double> > &J1, double &lz){
 
   peff.resize(L);
   for(int a=0;a<L;a++){
-    double e=h1[a];
+    double e= (L==Lp ? h1[a] : h1[0]*(a+1));
     for(int j=0;j< nsnp;j++){
       if(j==i0) continue;
       int b=ci[j];
       if(b==0) continue;
-      e+=J1[j][L*a+b-1];
+      e+= (L==Lp ? J1[j][L*a+b-1] : J1[j][0]*(a+1)*b);
     }
     peff[a]=e;
   }
@@ -35,14 +35,15 @@ void pan3(vector<double> &peff, int nsnp, int i0, int L,
   }
   for(int a=0;a<L;a++)
     peff[a]/=z;
-
+  
+  lz = log(z)+max;
 }
 
-double pan2(int nsnp, int i0, int L, const vector<short> &ci, 
-  const vector<double> &h1, const vector<vector<double> > &J1){
+double pan2(int nsnp, int i0, int L, int Lp, const vector<short> &ci, 
+  const vector<double> &h1, const vector<vector<double> > &J1, double &lz){
 
   vector<double> peff(L);
-  pan3(peff, nsnp, i0, L, ci, h1, J1);
+  pan3(peff, nsnp, i0, L, Lp, ci, h1, J1, lz);
 
   int a0=ci[i0];
   if(a0>0)
@@ -60,36 +61,41 @@ double lnl_psl(const gsl_vector *v,void *params){  // evaluates log likelihood
   Param *par=(Param *)params;
   int i0=par->i0;
   int L=par->L;
+  int Lp=par->Lp;
   double lambda=par->lambda;
   int nsnp=(par->ai)[0].size();
 
-  vector<double> h1(L);
+  vector<double> h1(Lp);
   vector<vector<double> > J1(nsnp);
-  for(int i=0; i<nsnp; i++) J1[i].resize(L*L);
+  for(int i=0; i<nsnp; i++) J1[i].resize(Lp*Lp);
 
   int m=0;
-  for(int l0=0;l0<L;l0++){
+  for(int l0=0;l0<Lp;l0++){
     h1[l0]=gsl_vector_get(v,m++);
     for(int i=0; i<nsnp; i++){ 
       if(i==i0) continue;
-      for(int l1=0;l1<L;l1++)
-        J1[i][L*l0+l1]=gsl_vector_get(v,m++);
+      for(int l1=0;l1<Lp;l1++)
+        J1[i][Lp*l0+l1]=gsl_vector_get(v,m++);
     }
   }
 
   int nind=int((par->ai).size());
   ln=0;
+  par->lzp = 0;
   for(int n=0;n<nind;n++){
-    double p=pan2(nsnp,i0,L,(par->ai)[n],h1,J1);
+    double lz=0;
+    double p=pan2(nsnp,i0,L,Lp,(par->ai)[n],h1,J1,lz);
     ln += -log(p);
+    par->lzp += lz;
   }
   ln /= nind;
+  par->lzp /= nind;
 
-  for(int l=0;l<L;l++)
+  for(int l=0;l<Lp;l++)
     ln+= lambda*h1[l]*h1[l]/2;
   for(int i=0; i<nsnp; i++){
     if(i==i0) continue;
-    for(int l=0;l<L*L;l++)
+    for(int l=0;l<Lp*Lp;l++)
       ln+=lambda*J1[i][l]*J1[i][l]/2;
   }
   return ln;
@@ -100,67 +106,89 @@ void dlnl_psl(const gsl_vector *v,void *params,gsl_vector *df){   // first deriv
 
   Param *par=(Param *)params;
   int L=par->L;
+  int Lp=par->Lp;
   int nsnp=(par->ai)[0].size();
   double lambda=par->lambda;
   int i0=par->i0;
 
-  vector<double> s1(L);
+  vector<double> s1(Lp);
   vector<vector<double> > s2(nsnp);
 
-  vector<double> h1(L);
+  vector<double> h1(Lp);
   vector<vector<double> > J1(nsnp);
-  for(int i=0; i<nsnp; i++) J1[i].resize(L*L);
+  for(int i=0; i<nsnp; i++) J1[i].resize(Lp*Lp);
 
   int m=0;
-  for(int l0=0;l0<L;l0++){
+  for(int l0=0;l0<Lp;l0++){
     h1[l0]=gsl_vector_get(v,m++);
     for(int i=0; i<nsnp; i++){ 
       if(i==i0) continue;
-      for(int l1=0; l1<L; l1++)
-        J1[i][L*l0+l1]=gsl_vector_get(v,m++);
+      for(int l1=0; l1<Lp; l1++)
+        J1[i][Lp*l0+l1]=gsl_vector_get(v,m++);
     }
   }
 
   int nind=int((par->ai).size());
 
-  for(int l=0;l<L;l++) s1[l]=0;
+  for(int l=0;l<Lp;l++) s1[l]=0;
   for(int i=0; i<nsnp; i++){
-    s2[i].resize(L*L);
-    for(int l=0;l<L*L;l++) s2[i][l]=0;
+    s2[i].resize(Lp*Lp);
+    for(int l=0;l<Lp*Lp;l++) s2[i][l]=0;
   }
 
   for(int k=0;k<nind;k++){
     vector<double> peff(L);
-    pan3(peff, nsnp, i0, L, (par->ai)[k], h1, J1);
+    double lz=0;
+    pan3(peff, nsnp, i0, L, Lp, (par->ai)[k], h1, J1, lz);
     for(int l0=0;l0<L;l0++){
       double f=peff[l0]/nind;
-      s1[l0]+=f;
+      if(L==Lp)
+        s1[l0]+= f;
+      else
+        s1[0]+= f*(l0+1);
       for(int j=0;j<nsnp;j++){
         if(j==i0) continue;
         short a=(par->ai)[k][j];
         if(a==0) continue;
-        s2[j][L*l0+a-1]+=f;
+        if(L==Lp)
+          s2[j][Lp*l0+a-1] += f;
+        else
+          s2[j][0] += f*(l0+1)*a;
       }
     }
   }
 
-  for(int l0=0;l0<L;l0++){
-    s1[l0] += lambda*h1[l0] - (par->f1)[l0];
-    for(int j=0;j<nsnp;j++){
-      if(j==i0) continue;
-      for(int l1=0;l1<L;l1++)
-        s2[j][L*l0+l1]+=-(par->f2)[j][L*l0+l1]
-           +lambda*J1[j][L*l0+l1];
+  if(L==Lp){
+    for(int l0=0;l0<L;l0++){
+      s1[l0] += lambda*h1[l0] - (par->f1)[l0];
+      for(int j=0;j<nsnp;j++){
+        if(j==i0) continue;
+        for(int l1=0;l1<L;l1++)
+          s2[j][L*l0+l1]+=-(par->f2)[j][L*l0+l1]
+             +lambda*J1[j][L*l0+l1];
+      }
+    }
+  } else{
+    s1[0] += lambda*h1[0];
+    for(int j=0; j<nsnp; j++)
+      if(j!=i0) s2[j][0] += lambda*J1[j][0];
+    for(int l0=0; l0<L; l0++){
+      s1[0] -= (par->f1)[l0]*(l0+1);
+      for(int j=0; j<nsnp; j++){
+        if(j==i0) continue;
+        for(int l1=0; l1<L; l1++)
+          s2[j][0] -= (par->f2)[j][L*l0+l1]*(l0+1)*(l1+1);
+      }
     }
   }
 
   m=0;
-  for(int l0=0;l0<L;l0++){
+  for(int l0=0;l0<Lp;l0++){
     gsl_vector_set(df,m++,s1[l0]);
     for(int i=0; i<nsnp; i++){ 
       if(i==i0) continue;
-      for(int l1=0;l1<L;l1++)
-        gsl_vector_set(df,m++,s2[i][L*l0+l1]);
+      for(int l1=0;l1<Lp;l1++)
+        gsl_vector_set(df,m++,s2[i][Lp*l0+l1]);
     }
   }
 }
@@ -174,7 +202,7 @@ void ln_dln_psl(const gsl_vector *x,void *params,double *f,gsl_vector *df){
 
 double lpr_psl(int i0, const vector<vector<short> > &ai, int L, double lambda, 
                vector<double> &h, vector<vector<double> > &J, int nprint, 
-               unsigned int Imax, double Tol, int verbose){
+               unsigned int Imax, double Tol, int verbose, double &lz, bool numeric){
 
   size_t iter=0;
   int status;
@@ -192,7 +220,9 @@ double lpr_psl(int i0, const vector<vector<short> > &ai, int L, double lambda,
   gsl_vector *x;
   gsl_multimin_function_fdf my_func;
 
-  int ndim = L+(nsnp-1)*L*L;
+  int Lp = L;
+  if(numeric) Lp = 1;
+  int ndim = Lp+(nsnp-1)*Lp*Lp;
 
   my_func.n=ndim;         
   my_func.f=lnl_psl;
@@ -203,7 +233,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai, int L, double lambda,
   T=gsl_multimin_fdfminimizer_vector_bfgs2;  // BFGS2 optimizer
   s=gsl_multimin_fdfminimizer_alloc(T,ndim);
 
-  Param par={i0, ai, L, lambda, f1, f2};
+  Param par={i0, ai, L, Lp, lambda, f1, f2, lz};
 
   my_func.params=&par;
   gsl_vector_set_zero(x);  // initial guess
@@ -214,7 +244,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai, int L, double lambda,
   do{
       iter++;
       status=gsl_multimin_fdfminimizer_iterate(s);
-      if(iter%nprint==0 & verbose>0)
+      if(iter%nprint==0 & verbose>1)
         cout << "  iteration # " << iter << ": " << s->f << endl;
       if(status){
         cerr << " GSL status code " << status << endl;
@@ -225,20 +255,21 @@ double lpr_psl(int i0, const vector<vector<short> > &ai, int L, double lambda,
   if(iter==Imax)
     cerr << "BFGS2 iteration failed to converge after " 
          << Imax << " iterations\n";
-  if(verbose > 0) cout << " Site " << i0+1 << ": " << iter 
-       << " iterations, likelihood = " << s->f << endl;
+//  if(verbose > 0 && i0%max(nsnp/10,1)==0) 
+    if(verbose > 0) cout << " Site " << i0+1 << ": " << iter
+         << " iterations, likelihood = " << s->f << endl;
 
-  h.resize(L);
+  h.resize(Lp);
   J.resize(nsnp);
   double min=0;
-  for(int i=0; i<nsnp; i++) J[i].resize(L*L);
+  for(int i=0; i<nsnp; i++) J[i].resize(Lp*Lp);
   int m=0;
-  for(int l0=0;l0<L;l0++){
+  for(int l0=0;l0<Lp;l0++){
     h[l0]=gsl_vector_get(s->x,m++);
-    for(int i=0; i<nsnp; i++) for(int l1=0;l1<L;l1++){
-        if(i==i0) J[i][L*l0+l1]=0;
+    for(int i=0; i<nsnp; i++) for(int l1=0;l1<Lp;l1++){
+        if(i==i0) J[i][Lp*l0+l1]=0;
         else
-          J[i][L*l0+l1]=gsl_vector_get(s->x,m++);
+          J[i][Lp*l0+l1]=gsl_vector_get(s->x,m++);
     }
   }
   min=-nind*(s->f);

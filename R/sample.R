@@ -1,27 +1,29 @@
-eh <- function(si, L, h, J){
+eh <- function(si, L, h, J, numeric=FALSE){
 
   N <- length(si)
   e <- 0
 
   for(i in 1:N){
     if(si[i]==0) next
-    e <- e + h[i,si[i]]
+    if(numeric) e <- e + h[i,1]*si[i]
+    else e <- e + h[i,si[i]]
     if(i < N){
       for(j in (i+1):N){
         if(si[j]==0) next
-        e <- e + J[[i]][[j]][si[i],si[j]]
+        if(numeric) e <- e + J[[i]][[j]]*si[i]*si[j]
+        else e <- e + J[[i]][[j]][si[i],si[j]]
       }
     }
   }
   return(exp(e))
 }
 
-enum <- function(si, L, i, h, J, e=NULL){
+enum <- function(si, L, i, h, J, e=NULL, numeric=FALSE){
 
   for(s in seq(0,L-1)){
     si[i] <- s
-    if(i>1) e <- enum(si, L, i-1, h, J, e)
-    else e <- rbind(e, cbind(t(si),eh(si, L, h, J)))
+    if(i>1) e <- enum(si, L, i-1, h, J, e, numeric=numeric)
+    else e <- rbind(e, cbind(t(si),eh(si, L, h, J, numeric=numeric)))
   }
   N <- length(si)
   if(nrow(e)==L^N) e[,N+1] <- e[,N+1]/sum(e[,N+1])
@@ -38,23 +40,27 @@ enum <- function(si, L, i, h, J, e=NULL){
 #'          d'th element is a square matrix of dimension d.
 #' @param numeric Return numeric code of factors minus 1 (0,...,L-1)
 #' @export
-sample_si <- function(nsample=1, predictors=c('0','1'), 
+sample_si <- function(nsample=1, predictors=c('0','1'), L=NULL,
                       nrepl=1, nsite, h, J, mc=FALSE,
-                      nstep=1000, progress.bar=TRUE, numeric=FALSE){
+                      nstep=1000, progress.bar=TRUE, code_out=FALSE){
 
+  numeric.model <- identical(predictors,'numeric')
   if(!is.character(predictors)) 
     predictors <- as.character(predictors)
   predictors <- unique(predictors)
-  L <- length(predictors)
-  
-  if(!all(predictors[-1]==colnames(h))) 
-    stop("Predictors and h column names don't match")
+  if(numeric.model){ 
+    if(is.null(L)) stop('L must be given for numeric model')
+  } else{
+    L <- length(predictors)
+    if(!all(predictors[-1]==colnames(h))) 
+      stop("Predictors and h column names don't match")
+  }
   
   if(!mc){
-    if(NROW(h)!=nsite | NCOL(h)!=L-1 | length(J)!=nsite |
+    if(!numeric.model) if(NROW(h)!=nsite | NCOL(h)!=L-1 | length(J)!=nsite |
        !all(dim(J[[1]][[2]])==c(L-1,L-1)))
          stop('Incorrect dimension of parameters')
-    e <- enum(si=rep(0,nsite), L=L, i=nsite, h, J)
+    e <- enum(si=rep(0,nsite), L=L, i=nsite, h, J, numeric=numeric.model)
     si <- NULL
     for(k in 1:nsample){
       sid <- sample(1:nrow(e), size=nrepl, replace=TRUE, 
@@ -71,7 +77,7 @@ sample_si <- function(nsample=1, predictors=c('0','1'),
     si <- mc[sid,]
   }
   
-  if(!numeric)
+  if(!code_out & !numeric.model)
     si <- as.data.frame(matrix(predictors[si+1], nrow=nsample, ncol=nsite))
   rownames(si) <- seq_len(nsample)
   colnames(si) <- seq_len(nsite)
@@ -120,7 +126,7 @@ energy <- function(i, si, h, J){
 }
 
 #' @export
-GenRandomPar <- function(m, predictors=NULL, L=NULL, h0=0, dh=1, J0=0, dJ=1, 
+randompar <- function(m, predictors=NULL, L=NULL, h0=0, dh=1, J0=0, dJ=1, 
                          distr='unif'){
   
   if(!is.null(predictors)){

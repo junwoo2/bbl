@@ -23,9 +23,9 @@
 #' @return List of inferred parameters \code{h} and \code{J}.
 #' @export
 
-mlestimate <- function(xi, L=2, method='pseudo', lambda=0, 
+mlestimate <- function(xi, L=2, method='pseudo', numeric=FALSE, lambda=0, 
                        symmetrize=TRUE, eps=1, nprint=100, itmax=10000,
-                       tolerance=1e-5, verbose=1){
+                       tolerance=1e-5, verbose=1, naive=FALSE){
   
   if(method=='pseudo'){
     Lambda <- c(lambda)
@@ -33,19 +33,26 @@ mlestimate <- function(xi, L=2, method='pseudo', lambda=0,
     Itmax <- c(itmax)
     Tol <- c(tolerance)
     Verbose <- c(verbose)
-    theta <- pseudo_mle(xi, L, Lambda, Nprint, Itmax, Tol, Verbose)
+    if(!is.numeric(xi)) stop('Input data to mlestimate must be numeric')
+    if(!naive)
+      theta <- pseudo_mle(xi, L, numeric, Lambda, Nprint, Itmax, Tol, Verbose)
+    else
+      theta <- naive_bayes(xi=xi, L=L, numeric=numeric, verbose=verbose)
+    
   } else if(method=='mft'){
     theta <- mle_mft(xi=xi, L=L, dmax=dmax, eps=eps)
   } else stop('unknown method in mlestimate')
 
   m <- NCOL(xi)
-  h <- matrix(0, nrow=m, ncol=L-1)
+  if(numeric) Lp <- 1
+  else Lp <- L-1
+  h <- matrix(0, nrow=m, ncol=Lp)
   for(i in seq_len(m)) h[i,] <- theta$h[[i]]
   J <- vector('list',m)
   for(i in seq_len(m)) J[[i]] <- vector('list',m)
   for(i in seq(1,m)) for(j in seq(i,m)){
-    x <- matrix(theta$J[[i]][[j]], nrow=L-1, ncol=L-1, byrow=TRUE)
-    xt <- matrix(theta$J[[j]][[i]], nrow=L-1, ncol=L-1, byrow=TRUE)
+    x <- matrix(theta$J[[i]][[j]], nrow=Lp, ncol=Lp, byrow=TRUE)
+    xt <- matrix(theta$J[[j]][[i]], nrow=Lp, ncol=Lp, byrow=TRUE)
     if(i<j & symmetrize){ 
       x <- (x + t(xt))/2
       xt <- t(x)
@@ -54,7 +61,35 @@ mlestimate <- function(xi, L=2, method='pseudo', lambda=0,
     J[[j]][[i]] <- xt
   }
   
-  return(list(h=h, J=J, mle=theta$lkl))
+  return(list(h=h, J=J, mle=theta$lkl, lz=theta$lz))
+}
+
+# Naive Bayes (no interaction)
+naive_bayes <- function(xi, L, numeric=FALSE, verbose){
+  
+  nsample <- NROW(xi)
+  m <- NCOL(xi)
+  
+  if(numeric) Lp <- 1
+  else Lp <- L-1
+  
+  h <- matrix(0, nrow=m, ncol=Lp)
+  
+  f0 <- colMeans(xi==0)
+  for(l in seq_len(L-1)){
+    if(numeric)
+      h[,1] <- log(colMeans(xi==l)/f0)/l
+    else
+      h[,l] <- log(colMeans(xi==l)/f0)
+  }
+  
+  J <- vector('list',m)
+  for(i in seq_len(m)){ 
+    J[[i]] <- vector('list',m)
+    for(j in seq_len(m)) J[[i]][[j]] <- 0
+  }
+  
+  return(list(h=h, J=J, lkl=NA))
 }
 
 #' @export
