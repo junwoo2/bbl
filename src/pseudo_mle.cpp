@@ -1,7 +1,6 @@
 #include <Rcpp.h>
 #include <gsl/gsl_vector.h>
 #include "bfgs.h"
-#include "eham.h"
 using namespace Rcpp;
 
 // [[Rcpp::export]]
