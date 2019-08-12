@@ -23,9 +23,27 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// predict_class
+NumericMatrix predict_class(IntegerMatrix xid, IntegerVector Ly, List h, List J, LogicalVector numericmodel, NumericVector lz, NumericVector py);
+RcppExport SEXP _bbm_predict_class(SEXP xidSEXP, SEXP LySEXP, SEXP hSEXP, SEXP JSEXP, SEXP numericmodelSEXP, SEXP lzSEXP, SEXP pySEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< IntegerMatrix >::type xid(xidSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type Ly(LySEXP);
+    Rcpp::traits::input_parameter< List >::type h(hSEXP);
+    Rcpp::traits::input_parameter< List >::type J(JSEXP);
+    Rcpp::traits::input_parameter< LogicalVector >::type numericmodel(numericmodelSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type lz(lzSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type py(pySEXP);
+    rcpp_result_gen = Rcpp::wrap(predict_class(xid, Ly, h, J, numericmodel, lz, py));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_bbm_pseudo_mle", (DL_FUNC) &_bbm_pseudo_mle, 8},
+    {"_bbm_predict_class", (DL_FUNC) &_bbm_predict_class, 7},
     {NULL, NULL, 0}
 };
 

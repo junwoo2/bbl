@@ -2,7 +2,7 @@
 #' @export
 crossval <- function(object, lambda=0, nfold=5, method='pseudo', eps=1, 
                      L=NULL, auc=TRUE, naive=FALSE, verbose=1, 
-                     computeZ=FALSE, nullcount=0, mf=TRUE){
+                     computeZ=FALSE, nullcount=0, mf=TRUE, useC=TRUE){
   
   groups <- object@groups
   Ly <- length(groups)
@@ -53,7 +53,7 @@ crossval <- function(object, lambda=0, nfold=5, method='pseudo', eps=1,
         computeZ <- TRUE
       } 
       pr <- predict(object=obtrain, newdata=obval@data, logit=TRUE,
-                    computeZ=computeZ, mf=mf)
+                    computeZ=computeZ, mf=mf, useC=useC)
       pred <- rbind(pred, cbind(data.frame(y=obval@data$y), pr))
     }
     if(auc){ auc <- pROC::roc(response=pred$y, levels=groups, 

@@ -7,8 +7,7 @@
 #' @return Matrix of predictors/posterior proabilities
 #' @export
 setMethod('predict', 'bbm', function(object, newdata=NULL, logit=TRUE,
-                                     computeZ=FALSE, mf=FALSE,
-                                     useC=FALSE){
+                                     computeZ=FALSE, mf=FALSE, useC=TRUE){
   
   if(is.null(newdata)) data <- object@data # self-prediction
   else data <- newdata
@@ -17,15 +16,15 @@ setMethod('predict', 'bbm', function(object, newdata=NULL, logit=TRUE,
   y <- data$y
   
   Ly <- length(object@groups)
-  numeric <- identical(object@predictors,'numeric')
-  if(numeric) L <- 2
+  numericmodel <- identical(object@predictors,'numeric')
+  if(numericmodel) L <- 2
   else L <- length(object@predictors)
   h <- object@h
   J <- object@J
   nsample <- NROW(xi)
   lz <- py <- rep(0, Ly)
   
-  if(numeric){
+  if(numericmodel){
     if(!is.numeric(xi[1,1])) stop('Numeric model requires numeric data')
     xid <- as.matrix(xi)
   }else{
@@ -36,7 +35,7 @@ setMethod('predict', 'bbm', function(object, newdata=NULL, logit=TRUE,
   
   for(iy in seq_len(Ly)){
     if(computeZ)
-      lz[iy] <- Zeff(L, m, h[[iy]], J[[iy]], xid, numeric, mf=mf)  # log partition function
+      lz[iy] <- Zeff(L, m, h[[iy]], J[[iy]], xid, numericmodel, mf=mf)  # log partition function
     else
       lz[iy] <- object@lz[iy]
     py[iy] <- sum(y==object@groups[iy])        # marginal distribution P(y)
@@ -50,12 +49,12 @@ setMethod('predict', 'bbm', function(object, newdata=NULL, logit=TRUE,
       E <- rep(0, Ly)
       for(iy in seq_len(Ly))
         E[iy] <- ham(x, h[[iy]], J[[iy]], 
-                     numeric=numeric) - lz[iy] + log(py[iy])
+                     numeric=numericmodel) - lz[iy] + log(py[iy])
       for(iy in seq_len(Ly))
         ay[k,iy] <- -log(sum(exp(E[-iy]-E[iy])))
     }
   }else
-    ay <- predict_class(xid, Ly, h, J, numeric, lz, py)
+    ay <- predict_class(xid, c(Ly), h, J, c(numericmodel), lz, py)
 
   if(!logit) ay <- 1/(1+exp(-ay))  # posterior probability
   rownames(ay) <- seq_len(nsample)
