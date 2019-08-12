@@ -3,7 +3,7 @@
 S3method(simulate,data)
 export(bbm)
 export(crossval)
-export(mle_mft)
+export(meanfield)
 export(mlestimate)
 export(randompar)
 export(sample_si)

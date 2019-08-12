@@ -6,7 +6,9 @@
 #'              otherwise return probability itself
 #' @return Matrix of predictors/posterior proabilities
 #' @export
-setMethod('predict', 'bbm', function(object, newdata=NULL, logit=TRUE){
+setMethod('predict', 'bbm', function(object, newdata=NULL, logit=TRUE,
+                                     computeZ=FALSE, mf=FALSE,
+                                     useC=FALSE){
   
   if(is.null(newdata)) data <- object@data # self-prediction
   else data <- newdata
@@ -33,21 +35,28 @@ setMethod('predict', 'bbm', function(object, newdata=NULL, logit=TRUE){
   }
   
   for(iy in seq_len(Ly)){
-    lz[iy] <- Zeff(L, m, h[[iy]], J[[iy]], xid, numeric)  # log partition function
+    if(computeZ)
+      lz[iy] <- Zeff(L, m, h[[iy]], J[[iy]], xid, numeric, mf=mf)  # log partition function
+    else
+      lz[iy] <- object@lz[iy]
     py[iy] <- sum(y==object@groups[iy])        # marginal distribution P(y)
   }
   py <- py/nsample
   
-  ay <- matrix(0, nrow=nsample, ncol=Ly)
-  for(k in seq_len(nsample)){
-    x <- xid[k,]
-    E <- rep(0, Ly)
-    for(iy in seq_len(Ly))
-      E[iy] <- ham(x, h[[iy]], J[[iy]], numeric=numeric) - lz[iy] + log(py[iy])
-    for(iy in seq_len(Ly))
-      ay[k,iy] <- -log(sum(exp(E[-iy]-E[iy])))
-  }
-  
+  if(!useC){
+    ay <- matrix(0, nrow=nsample, ncol=Ly)
+    for(k in seq_len(nsample)){
+      x <- xid[k,]
+      E <- rep(0, Ly)
+      for(iy in seq_len(Ly))
+        E[iy] <- ham(x, h[[iy]], J[[iy]], 
+                     numeric=numeric) - lz[iy] + log(py[iy])
+      for(iy in seq_len(Ly))
+        ay[k,iy] <- -log(sum(exp(E[-iy]-E[iy])))
+    }
+  }else
+    ay <- predict_class(xid, Ly, h, J, numeric, lz, py)
+
   if(!logit) ay <- 1/(1+exp(-ay))  # posterior probability
   rownames(ay) <- seq_len(nsample)
   colnames(ay) <- object@groups
@@ -73,9 +82,26 @@ ham <- function(x, h, J, numeric){
 }
 
 # Pseudo partition function using data xi
-Zeff <- function(L, m, h, J, xi, numeric){
+Zeff <- function(L, m, h, J, xi, numeric, mf=mf){
   
   nsample <- NROW(xi)
+  if(numeric) Lp <- 1
+  else Lp <- L-1
+  if(mf){
+    fi <- matrix(0,nrow=m, ncol=Lp)
+    for(l in seq_len(Lp)){
+      if(numeric) fi[,1] <- fi[,1] + colMeans(xi==l)
+      else fi[,l] <- colMeans(xi==l)
+    }
+    f0 <- 1 - rowSums(fi)
+    lz <- - sum(log(f0))
+    for(i in seq(1,m-1)) for(j in seq(i+1,m))
+      for(l0 in seq_len(Lp)) for(l1 in seq_len(Lp)){
+        dz <- J[[i]][[j]][l0,l1]*fi[i,l0]*fi[j,l1]
+        lz <- lz - dz
+      }
+    return(lz)
+  }
   lz <- 0
   for(k in seq_len(nsample)) for(i in seq_len(m)){
     z <- 1

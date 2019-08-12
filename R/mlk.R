@@ -25,7 +25,8 @@
 
 mlestimate <- function(xi, L=2, method='pseudo', numeric=FALSE, lambda=0, 
                        symmetrize=TRUE, eps=1, nprint=100, itmax=10000,
-                       tolerance=1e-5, verbose=1, naive=FALSE){
+                       tolerance=1e-5, verbose=1, naive=FALSE,
+                       nullcount=1){
   
   if(method=='pseudo'){
     Lambda <- c(lambda)
@@ -39,29 +40,31 @@ mlestimate <- function(xi, L=2, method='pseudo', numeric=FALSE, lambda=0,
     else
       theta <- naive_bayes(xi=xi, L=L, numeric=numeric, verbose=verbose)
     
-  } else if(method=='mft'){
-    theta <- mle_mft(xi=xi, L=L, dmax=dmax, eps=eps)
+    m <- NCOL(xi)
+    if(numeric) Lp <- 1
+    else Lp <- L-1
+    h <- matrix(0, nrow=m, ncol=Lp)
+    for(i in seq_len(m)) h[i,] <- theta$h[[i]]
+    J <- vector('list',m)
+    for(i in seq_len(m)) J[[i]] <- vector('list',m)
+    for(i in seq(1,m)) for(j in seq(i,m)){
+      x <- matrix(theta$J[[i]][[j]], nrow=Lp, ncol=Lp, byrow=TRUE)
+      xt <- matrix(theta$J[[j]][[i]], nrow=Lp, ncol=Lp, byrow=TRUE)
+      if(i<j & symmetrize){ 
+        x <- (x + t(xt))/2
+        xt <- t(x)
+      }
+      J[[i]][[j]] <- x
+      J[[j]][[i]] <- xt
+    }
+    return(list(h=h, J=J, mle=theta$lkl, lz=theta$lz))
+  }
+  else if(method=='mf'){
+    theta <- meanfield(xi=xi, L=L, eps=eps, numeric=numeric,
+                       nullcount=nullcount)
+    return(list(h=theta$h, J=theta$J))
   } else stop('unknown method in mlestimate')
 
-  m <- NCOL(xi)
-  if(numeric) Lp <- 1
-  else Lp <- L-1
-  h <- matrix(0, nrow=m, ncol=Lp)
-  for(i in seq_len(m)) h[i,] <- theta$h[[i]]
-  J <- vector('list',m)
-  for(i in seq_len(m)) J[[i]] <- vector('list',m)
-  for(i in seq(1,m)) for(j in seq(i,m)){
-    x <- matrix(theta$J[[i]][[j]], nrow=Lp, ncol=Lp, byrow=TRUE)
-    xt <- matrix(theta$J[[j]][[i]], nrow=Lp, ncol=Lp, byrow=TRUE)
-    if(i<j & symmetrize){ 
-      x <- (x + t(xt))/2
-      xt <- t(x)
-    }
-    J[[i]][[j]] <- x
-    J[[j]][[i]] <- xt
-  }
-  
-  return(list(h=h, J=J, mle=theta$lkl, lz=theta$lz))
 }
 
 # Naive Bayes (no interaction)
@@ -93,42 +96,81 @@ naive_bayes <- function(xi, L, numeric=FALSE, verbose){
 }
 
 #' @export
-mle_mft <- function(xi, L, dmax=1, eps=1){
+meanfield <- function(xi, L, eps=1, numeric=FALSE, nullcount=0){
 
   nsite <- ncol(xi)
   nsample <- nrow(xi)
-  csi <- matrix(0, nrow=nsample, ncol=nsite*(L-1))
-  for(k in 1:nsample){ 
-    for(i in 1:N){
-      if(xi[k,i]==1) next
-      j <- (i-1)*(L-1)
-      csi[k, j+xi[k,i]-1] <- 1
-    }
+  if(numeric) Lp <- 1
+  else Lp <- L-1
+  
+  csi <- matrix(0, nrow=nsample, ncol=nsite*Lp)
+  for(k in seq_len(nsample)) for(i in seq_len(nsite)){
+    if(xi[k,i]==0) next()
+    if(numeric)
+      csi[k, (i-1)*Lp+1] <- xi[k,i]
+    else
+      csi[k, (i-1)*Lp+xi[k,i]] <- 1
   }
-  cij <- cov(csi)
-  cijb <- eps*cij + (1-eps)*mean(diag(cij))*diag(1,nrow=nsite*(L-1))
-  mi <- matrix(colMeans(csi), nrow=nsite, ncol=L-1, byrow=TRUE)
-  m0 <- 1-rowSums(mi)
-  Jij <- solve(a=cijb, b=diag(-1, nrow=nsite*(L-1)))
+  if(sum(colSums(csi)==0)>0) nullcount <- 1
+  mi <- (1/(Lp+1) + colSums(csi))/(nsample+nullcount)
+  mi <- matrix(mi, nrow=nsite, ncol=Lp, byrow=TRUE)
+# cij <- cov(csi)
+  cij <- (t(csi) %*% csi + 1/(Lp+1)^2) / (nsample-1+nullcount)
+  cijb <- eps*cij + (1-eps)*mean(diag(cij))*diag(1,nrow=nsite*Lp)
+
+  if(!numeric){
+    m0 <- 1-rowSums(mi)
+    h <- log(mi/m0)
+  } else
+    h <- invav(mi,L)
+
+  Jij <- solve(a=cijb, b=diag(-1, nrow=nsite*Lp))
   diag(Jij) <- 0
-  hi <- log(mi/m0)
-  for(i in 1:N) for(j in 1:N){
+  for(i in seq_len(nsite)) for(j in seq_len(nsite)){
     if(i==j) next
-    for(l in 1:(L-1)) for(q in 1:(L-1))
-      hi[i,l] <- hi[i,l] - Jij[(i-1)*(L-1)+l,(j-1)*(L-1)+q]*mi[j,q]
+    for(l in seq_len(Lp)) for(q in seq_len(Lp))
+      h[i,l] <- h[i,l] - Jij[(i-1)*Lp+l,(j-1)*Lp+q]*mi[j,q]
   }
-  h <- colMeans(hi)
-  J <- vector('list',dmax)
-  for(d in 1:dmax) J[[d]] <- matrix(0,nrow=L-1,ncol=L-1)
-  s <- rep(0, dmax)  # counter
-  for(i in 1:(N-1)) for(j in (i+1):N){
-    d <- j-i
-    if(d > dmax) next
-    s[d] <- s[d] + 1
-    for(l in 1:(L-1)) for(q in 1:(L-1))
-      J[[d]][l,q] <- J[[d]][l,q] + Jij[(i-1)*(L-1)+l,(j-1)*(L-1)+q]
+  J <- vector('list',m)
+  for(i in seq_len(m)) J[[i]] <- vector('list',m)
+  for(i in seq(1,nsite)) for(j in seq(i,nsite)){
+    if(i==j){ 
+      J[[i]][[i]] <- matrix(0,nrow=Lp,ncol=Lp)
+      next()
+    }
+    w <- matrix(0, nrow=Lp, ncol=Lp)
+    for(l in seq_len(Lp)) for(q in seq_len(Lp))
+      w[l,q] <- Jij[(i-1)*Lp+l,(j-1)*Lp+q]
+    J[[i]][[j]] <- w
+    J[[j]][[i]] <- t(w)
   }
-  for(d in 1:dmax) J[[d]] <- J[[d]]/s[d]
   
   return(list(h=h, J=J))
+}
+
+# Inverse function of mean single-site average mi
+
+invav <- function(mi, L){
+  
+  f <- function(h, mi){
+    up <- down <- 0
+    eh <- exp(h)
+    for(x in seq(0,L-1)){
+      ehx <- eh^x
+      up <- up + x*ehx
+      down <- down + ehx
+    }
+    m-up/down
+  }
+  
+  z <- NULL
+  for(m in mi){
+    if(m==0) hi <- -Inf
+    else if(m==L-1) hi <- Inf
+    else hi <- uniroot(f, interval=c(-10,10), mi=m)$root
+    z <- c(z, hi)
+  }
+  
+  z <- matrix(z, nrow=length(mi),ncol=1)
+  return(z)
 }

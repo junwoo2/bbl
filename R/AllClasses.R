@@ -10,8 +10,8 @@ bbm <- setClass('bbm',
                        nsite='numeric', # no of sites
                        data='data.frame',
                        h='list',      # field
-                       J='list'       # coupling
-#                      lz='numeric'   # log partition function
+                       J='list',       # coupling
+                       lz='numeric'   # log partition function
 ))
 #' @export
 setMethod('initialize', signature=('bbm'),

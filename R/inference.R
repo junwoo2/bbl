@@ -6,8 +6,8 @@
 #' @param naive Naive Bayes (no interaction; \code{J}=0)
 #' @param verbose Output verbosity
 #' @export
-train <- function(object, method='pseudo', lambda=0, L=NULL, data=NULL, naive=FALSE,
-                  verbose=1){
+train <- function(object, method='pseudo', lambda=0, L=NULL, eps=1,
+                  data=NULL, naive=FALSE, verbose=1, nullcount=0){
   
   predictors <- object@predictors
   groups <- object@groups
@@ -26,13 +26,14 @@ train <- function(object, method='pseudo', lambda=0, L=NULL, data=NULL, naive=FA
   else if(!'y' %in% colnames(data)) stop("Data must contain column 'y'")
   
   xi <- data[,colnames(data)!='y']
-  if(numeric) if(max(xi)>=L) stop('Numeric model data must have 0 <= xi <= L-1')
+  if(numeric) if(max(xi)!=L-1) 
+    stop('Numeric model data have maximum must have range of [0,L-1]')
   y <- data$y
   
   if(nsite!=NCOL(xi)) stop('No. of columns in data does not match nsite')
   
   object@h <- object@J <- vector('list',Ly)
-
+  lz <- c()
   for(iy in seq_len(Ly)){
     id <- which(y==groups[iy])
     xid <- xi[id,]
@@ -46,12 +47,16 @@ train <- function(object, method='pseudo', lambda=0, L=NULL, data=NULL, naive=FA
         xidi[,i] <- match(xid[,i],predictors) - 1   # xidi = 0, ..., L-1
     }
     mle <- mlestimate(xi=xidi, L=L, numeric=numeric, lambda=lambda, 
-                      method=method, verbose=verbose-1, naive=naive)
-    if(verbose>0) cat('  Maximum pseudo-likelihood = ',mle$mle,'\n\n',sep='')
+                      method=method, eps=eps, verbose=verbose-1, naive=naive,
+                      nullcount=nullcount)
+    if(verbose>0 & method=='pseudo') 
+      cat('  Maximum pseudo-likelihood = ',mle$mle,'\n\n',sep='')
     object@h[[iy]] <- mle$h
     object@J[[iy]] <- mle$J
+    if(method=='pseudo') lz <- c(lz,mle$lz)
   }
   
+  if(method=='pseudo') object@lz <- lz
   object@data <- data
   return(object)
 } 

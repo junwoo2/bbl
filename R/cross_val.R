@@ -1,7 +1,8 @@
 #' Cross-validation run
 #' @export
-crossval <- function(object, lambda=0, nfold=5, L=NULL, auc=TRUE, naive=FALSE,
-                     verbose=1){
+crossval <- function(object, lambda=0, nfold=5, method='pseudo', eps=1, 
+                     L=NULL, auc=TRUE, naive=FALSE, verbose=1, 
+                     computeZ=FALSE, nullcount=0, mf=TRUE){
   
   groups <- object@groups
   Ly <- length(groups)
@@ -9,11 +10,18 @@ crossval <- function(object, lambda=0, nfold=5, L=NULL, auc=TRUE, naive=FALSE,
   
   if(Ly!=2) auc <- FALSE
   
+  if(method=='pseudo') reglist <- lambda
+  else if(method=='mf') reglist <- eps
+  else stop('Unknown method')
+  
   res <- NULL
-  for(xlambda in lambda){
+  for(reg in reglist){
     if(verbose>0){ 
-      if(!naive)
-        cat('Cross validation under lambda=',xlambda,' ...\n',sep='')
+      if(!naive){
+        if(method=='pseudo') cat('Cross validation under lambda = ',sep='')
+        else cat('Cross validation under epsilon = ',sep='')
+        cat(reg,'\n',sep='')
+      }
       else
         cat('Cross validation with naive Bayes ...\n',sep='')
     }
@@ -36,9 +44,16 @@ crossval <- function(object, lambda=0, nfold=5, L=NULL, auc=TRUE, naive=FALSE,
       if(sum(is.na(ival)>0) | sum(is.na(itrain)>0)) stop('error in crossval')
       obval <- object[ival,]
       obtrain <- object[itrain,]
-      obtrain <- train(object=obtrain, lambda=xlambda, L=L, naive=naive,
-                       verbose=verbose-1)
-      pr <- predict(object=obtrain, newdata=obval@data, logit=TRUE)
+      if(method=='pseudo')
+        obtrain <- train(object=obtrain, lambda=reg, L=L, method=method,
+                       naive=naive, verbose=verbose-1)
+      else{
+        obtrain <- train(object=obtrain, eps=reg, L=L, method=method,
+                       naive=naive, verbose=verbose-1, nullcount=nullcount)
+        computeZ <- TRUE
+      } 
+      pr <- predict(object=obtrain, newdata=obval@data, logit=TRUE,
+                    computeZ=computeZ, mf=mf)
       pred <- rbind(pred, cbind(data.frame(y=obval@data$y), pr))
     }
     if(auc){ auc <- pROC::roc(response=pred$y, levels=groups, 
@@ -50,8 +65,13 @@ crossval <- function(object, lambda=0, nfold=5, L=NULL, auc=TRUE, naive=FALSE,
       score <- mean(pred$y==yhat)
       if(verbose>0) cat(' Prediction score = ',score,'\n',sep='')
     }
-    if(auc) rx <- data.frame(lambda=xlambda, auc=auc)
-    else rx <- data.frame(lambda=xlambda, score=score)
+    if(method=='pseudo'){
+      if(auc) rx <- data.frame(lambda=reg, auc=auc)
+      else rx <- data.frame(lambda=reg, score=score)
+    } else{
+      if(auc) rx <- data.frame(epsilon=reg, auc=auc)
+      else rx <- data.frame(epsilon=reg, score=score)
+    }
     res <- rbind(res, rx)
   }
   
