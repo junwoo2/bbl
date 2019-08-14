@@ -2,35 +2,33 @@
 #' @export
 crossval <- function(object, lambda=0, nfold=5, method='pseudo', eps=1, 
                      L=NULL, auc=TRUE, naive=FALSE, verbose=1, 
-                     computeZ=FALSE, nullcount=0, mf=TRUE, useC=TRUE){
+                     computeZ=FALSE, mf=TRUE, useC=TRUE){
   
   groups <- object@groups
   Ly <- length(groups)
   nsample <- NROW(object@data)
+  y <- object@data[,which(object@y==colnames(object@data))]
   
   if(Ly!=2) auc <- FALSE
   
   if(method=='pseudo') reglist <- lambda
   else if(method=='mf') reglist <- eps
+  else if(method=='nb') reglist <- eps <- 0
   else stop('Unknown method')
   
   res <- NULL
   for(reg in reglist){
     if(verbose>0){ 
-      if(!naive){
-        if(method=='pseudo') cat('Cross validation under lambda = ',sep='')
-        else cat('Cross validation under epsilon = ',sep='')
+      if(method=='pseudo') cat('Cross validation under lambda = ',sep='')
+      else cat('Cross validation under epsilon = ',sep='')
         cat(reg,'\n',sep='')
-      }
-      else
-        cat('Cross validation with naive Bayes ...\n',sep='')
     }
     pred <- NULL
     for(k in seq_len(nfold)){
       if(verbose>0) cat(' Fold no. ',k,'...\n',sep='')
       itrain <- ival <- NULL
       for(iy in seq_len(Ly)){
-        idy <- which(object@data$y==groups[iy])
+        idy <- which(y==groups[iy])
         ns <- length(idy)
         nval <- max(1,floor(ns/nfold))
         imax <- k*nval
@@ -45,16 +43,14 @@ crossval <- function(object, lambda=0, nfold=5, method='pseudo', eps=1,
       obval <- object[ival,]
       obtrain <- object[itrain,]
       if(method=='pseudo')
-        obtrain <- train(object=obtrain, lambda=reg, L=L, method=method,
-                       naive=naive, verbose=verbose-1)
+        obtrain <- train(object=obtrain, L=L, lambda=reg, method=method, verbose=verbose-1)
       else{
-        obtrain <- train(object=obtrain, eps=reg, L=L, method=method,
-                       naive=naive, verbose=verbose-1, nullcount=nullcount)
+        obtrain <- train(object=obtrain, L=L, eps=reg, method=method, verbose=verbose-1)
         computeZ <- TRUE
       } 
       pr <- predict(object=obtrain, newdata=obval@data, logit=TRUE,
                     computeZ=computeZ, mf=mf, useC=useC)
-      pred <- rbind(pred, cbind(data.frame(y=obval@data$y), pr))
+      pred <- rbind(pred, cbind(data.frame(y=y[ival], pr)))
     }
     if(auc){ auc <- pROC::roc(response=pred$y, levels=groups, 
                                predictor=pred[,3], direction='<')$auc

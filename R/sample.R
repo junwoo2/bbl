@@ -1,16 +1,16 @@
-eh <- function(si, L, h, J, numeric=FALSE){
+eh <- function(si, h, J, numeric=FALSE){
 
   N <- length(si)
   e <- 0
 
-  for(i in 1:N){
+  for(i in seq_len(N)){
     if(si[i]==0) next
-    if(numeric) e <- e + h[i,1]*si[i]
-    else e <- e + h[i,si[i]]
+    if(numeric) e <- e + h[[i]][1]*si[i]
+    else e <- e + h[[i]][si[i]]
     if(i < N){
-      for(j in (i+1):N){
+      for(j in seq(i+1,N)){
         if(si[j]==0) next
-        if(numeric) e <- e + J[[i]][[j]]*si[i]*si[j]
+        if(numeric) e <- e + J[[i]][[j]][1]*si[i]*si[j]
         else e <- e + J[[i]][[j]][si[i],si[j]]
       }
     }
@@ -20,13 +20,12 @@ eh <- function(si, L, h, J, numeric=FALSE){
 
 enum <- function(si, L, i, h, J, e=NULL, numeric=FALSE){
 
-  for(s in seq(0,L-1)){
+  for(s in seq(0,L[i]-1)){
     si[i] <- s
     if(i>1) e <- enum(si, L, i-1, h, J, e, numeric=numeric)
-    else e <- rbind(e, cbind(t(si),eh(si, L, h, J, numeric=numeric)))
+    else e <- rbind(e, cbind(t(si),eh(si, h, J, numeric=numeric)))
   }
   N <- length(si)
-  if(nrow(e)==L^N) e[,N+1] <- e[,N+1]/sum(e[,N+1])
   return(e)
 }
 
@@ -40,35 +39,25 @@ enum <- function(si, L, i, h, J, e=NULL, numeric=FALSE){
 #'          d'th element is a square matrix of dimension d.
 #' @param numeric Return numeric code of factors minus 1 (0,...,L-1)
 #' @export
-sample_si <- function(nsample=1, predictors=c('0','1'), L=NULL,
-                      nrepl=1, nsite, h, J, mc=FALSE,
-                      nstep=1000, progress.bar=TRUE, code_out=FALSE){
+sample_si <- function(nsample=1, numeric=FALSE, L=NULL, predictors=NULL, 
+                      h, J, mc=FALSE, nstep=1000, progress.bar=TRUE, 
+                      code_out=FALSE){
 
-  numeric.model <- identical(predictors,'numeric')
-  if(!is.character(predictors)) 
-    predictors <- as.character(predictors)
-  predictors <- unique(predictors)
-  if(numeric.model){ 
+  if(numeric){ 
     if(is.null(L)) stop('L must be given for numeric model')
+    nvar <- length(L)
   } else{
-    L <- length(predictors)
-    if(!all(predictors[-1]==colnames(h))) 
-      stop("Predictors and h column names don't match")
+    L <- NULL
+    for(p in predictors) L <- c(L, length(p))
+    if(length(predictors)!=length(h) | length(predictors)!=length(J))
+    stop("Predictors and h,J sizes don't match")
+    nvar <- length(predictors)
   }
-  
+
   if(!mc){
-    if(!numeric.model) if(NROW(h)!=nsite | NCOL(h)!=L-1 | length(J)!=nsite |
-       !all(dim(J[[1]][[2]])==c(L-1,L-1)))
-         stop('Incorrect dimension of parameters')
-    e <- enum(si=rep(0,nsite), L=L, i=nsite, h, J, numeric=numeric.model)
-    si <- NULL
-    for(k in 1:nsample){
-      sid <- sample(1:nrow(e), size=nrepl, replace=TRUE, 
-                    prob=e[,nsite+1])
-      si0 <- e[sid,1:nsite]
-      si0 <- c(t(si0))
-      si <- rbind(si, si0)
-    }
+    e <- enum(si=rep(0,nvar), L=L, i=nvar, h, J, numeric=numeric)
+    sid <- sample(NROW(e), size=nsample, replace=TRUE, prob=e[,nvar+1])
+    si <- e[sid,seq_len(nvar)]
   }
   else{
     mc <- mc.sample(si=rep(1,nsite),L=L,h,J,nstep=nstep, 
@@ -77,11 +66,17 @@ sample_si <- function(nsample=1, predictors=c('0','1'), L=NULL,
     si <- mc[sid,]
   }
   
-  if(!code_out & !numeric.model)
-    si <- as.data.frame(matrix(predictors[si+1], nrow=nsample, ncol=nsite))
-  rownames(si) <- seq_len(nsample)
-  colnames(si) <- seq_len(nsite)
-  return(si)
+  if(!code_out & !numeric){
+    for(i in seq_len(nvar)){
+      x <- data.frame(x=factor(predictors[[i]][si[,i]+1], 
+                                          levels=predictors[[i]]))
+      if(i==1) fsi <- x
+      else fsi <- cbind(fsi,x)
+    }
+  } else fsi <- as.data.frame(si)
+  rownames(fsi) <- seq_len(nsample)
+  colnames(fsi) <- seq_len(nvar)
+  return(fsi)
 }
 
 mc.sample <- function(si, L=L, h, J, nstep=1000, progress.bar=TRUE){
@@ -126,33 +121,34 @@ energy <- function(i, si, h, J){
 }
 
 #' @export
-randompar <- function(m, predictors=NULL, L=NULL, h0=0, dh=1, J0=0, dJ=1, 
-                         distr='unif'){
+randompar <- function(predictors, h0=0, dh=1, J0=0, dJ=1, distr='unif'){
   
-  if(!is.null(predictors)){
-    predictors <- unique(predictors)
-    L <- length(predictors)
-  } else if(is.null(L)) stop('Either predictors or L must be given')
+  m <- length(predictors)
+  L <- NULL
+  for(p in predictors) L <- c(L, length(p))
   
-  if(distr=='unif')
-    h <- matrix(runif(n=m*(L-1),min=h0-dh,max=h0+dh), nrow=m, ncol=L-1)
-  else
-    h <- matrix(rnorm(n=m*(L-1),mean=h0, sd=dh), nrow=m, ncol=L-1)
-  if(!is.null(predictors))
-    colnames(h) <- predictors[-1]
-  J <- vector('list',m)
-  for(i in seq_len(m)) J[[i]] <- vector('list',m)
-
-  for(i in seq_len(m)) for(j in seq(i,m)){
-    if(i==j) x <- 0
-    else{ 
-      if(distr=='unif') x <- runif(n=(L-1)^2, min=J0-dJ, max=J0+dJ)
-      else x <- rnorm(n=(L-1)^2, mean=J0, sd=dJ)
+  h <- J <- vector('list',m)
+  for(i in seq_len(m)) 
+    J[[i]] <- vector('list',m)
+  
+  for(i in seq_len(m)){
+    if(distr=='unif')
+      h[[i]] <- runif(n=L[i]-1,min=h0-dh,max=h0+dh)
+    else
+      h[[i]] <- rnorm(n=L[i]-1,mean=h0, sd=dh)
+    names(h[[i]]) <- predictors[[i]][-1]
+    for(j in seq(i,m)){
+      if(i==j) x <- 0
+      else{ 
+        if(distr=='unif') x <- runif(n=(L[i]-1)*(L[j]-1), min=J0-dJ, max=J0+dJ)
+        else x <- rnorm(n=(L[i]-1)*(L[j]-1), mean=J0, sd=dJ)
+      }
+      x <- matrix(x, nrow=L[i]-1, ncol=L[j]-1)
+      rownames(x) <- predictors[[i]][-1]
+      colnames(x) <- predictors[[j]][-1]
+      J[[i]][[j]] <- x
+      if(i!=j) J[[j]][[i]] <- t(x)
     }
-    x <- matrix(x, nrow=L-1, ncol=L-1)
-    if(!is.null(predictors)) rownames(x) <- colnames(x) <- predictors[-1]
-    J[[i]][[j]] <- x
-    if(i!=j) J[[j]][[i]] <- t(x)
   }
   
   return(list(h=h, J=J))

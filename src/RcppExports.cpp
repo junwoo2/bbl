@@ -6,20 +6,19 @@
 using namespace Rcpp;
 
 // pseudo_mle
-List pseudo_mle(NumericMatrix xi, IntegerVector L, LogicalVector Numeric, NumericVector Lambda, IntegerVector Nprint, IntegerVector Itmax, NumericVector Tol, IntegerVector Verbose);
-RcppExport SEXP _bbm_pseudo_mle(SEXP xiSEXP, SEXP LSEXP, SEXP NumericSEXP, SEXP LambdaSEXP, SEXP NprintSEXP, SEXP ItmaxSEXP, SEXP TolSEXP, SEXP VerboseSEXP) {
+List pseudo_mle(NumericMatrix xi, LogicalVector Numeric, NumericVector Lambda, IntegerVector Nprint, IntegerVector Itmax, NumericVector Tol, IntegerVector Verbose);
+RcppExport SEXP _bbm_pseudo_mle(SEXP xiSEXP, SEXP NumericSEXP, SEXP LambdaSEXP, SEXP NprintSEXP, SEXP ItmaxSEXP, SEXP TolSEXP, SEXP VerboseSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< NumericMatrix >::type xi(xiSEXP);
-    Rcpp::traits::input_parameter< IntegerVector >::type L(LSEXP);
     Rcpp::traits::input_parameter< LogicalVector >::type Numeric(NumericSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type Lambda(LambdaSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type Nprint(NprintSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type Itmax(ItmaxSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type Tol(TolSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type Verbose(VerboseSEXP);
-    rcpp_result_gen = Rcpp::wrap(pseudo_mle(xi, L, Numeric, Lambda, Nprint, Itmax, Tol, Verbose));
+    rcpp_result_gen = Rcpp::wrap(pseudo_mle(xi, Numeric, Lambda, Nprint, Itmax, Tol, Verbose));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -42,7 +41,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_bbm_pseudo_mle", (DL_FUNC) &_bbm_pseudo_mle, 8},
+    {"_bbm_pseudo_mle", (DL_FUNC) &_bbm_pseudo_mle, 7},
     {"_bbm_predict_class", (DL_FUNC) &_bbm_predict_class, 7},
     {NULL, NULL, 0}
 };

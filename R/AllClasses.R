@@ -5,48 +5,65 @@
 #' @useDynLib bbm
 #' @importFrom Rcpp evalCpp
 bbm <- setClass('bbm',
-               slots=c(predictors='character',  # predictor factor levels
-                       groups='character',  # response factor levels
-                       nsite='numeric', # no of sites
+               slots=c(type='character',   # factor or numeric
+                       predictors='list',  # predictor factor levels
+                       groups='character', # response factor levels
                        data='data.frame',
-                       h='list',      # field
-                       J='list',       # coupling
-                       lz='numeric'   # log partition function
+                       y='character',      # target variable
+                       h='list',        # field
+                       J='list',        # coupling
+                       lz='numeric'     # log partition function
 ))
 #' @export
 setMethod('initialize', signature=('bbm'),
-          definition=function(.Object, predictors, groups, nsite, data=data.frame(), ...){
-            if(!is.character(predictors)) 
-              predictors <- as.character(predictors)
-            predictors <- unique(predictors)
-            if(!is.character(groups))
-              groups <- as.character(groups)
-            groups <- unique(groups)
-            .Object <- callNextMethod(.Object, predictors=predictors, 
-                                      groups=groups, nsite=nsite, data=data, ...)
+          definition=function(.Object, type='factors',predictors=NULL, groups=NULL,
+                              data, y='y', ...){
+            if(!is.data.frame(data))
+              data <- as.data.frame(data)
+            if(!y %in% colnames(data)) stop(paste0(y,' not in data'))
+            iy <- which(colnames(data)==y)
+            if(is.null(groups)) groups <- levels(factor(data[,iy]))
+            xi <- data[,-iy]
+            nvar <- ncol(xi)
+            if(type=='numeric') predictors <- list('numeric')
+            else predictors <- list()
+            cnt <- NULL
+            for(i in seq_len(nvar)){
+              fac <- levels(factor(xi[,i]))
+              if(length(fac)==1) next()
+              cnt <- c(cnt, i)
+              if(type=='factors') predictors[[length(cnt)]] <- fac
+            }
+            if(length(cnt)<nvar){
+              cat(' ',nvar-length(cnt),' variables with one level removed\n',
+                    sep='')
+              nvar <- length(cnt)
+              data <- cbind(xi[,cnt], data.frame(y=data[,iy]))
+            }
+            .Object <- callNextMethod(.Object, type=type, predictors=predictors, 
+                                      groups=groups, data=data, y=y, ...)
             return(.Object)
           })
 #' @export
 setMethod('show', signature='bbm',
           definition=function(object){
             cat('An object of class ', class(object),'\n', sep='')
-            if(length(predictors)!=1 | predictors[1]!='numeric'){
-              cat(' Predictor state c(',sep='')
-              L <- length(object@predictors)
-              for(i in seq_len(L)){ 
-                cat(object@predictors[i],sep='')
-                if(i < L) cat(',',sep='')
-              }
-              cat(') on ',sep='')
-            } else cat('Numeric predictors on ',sep='')
-            cat(object@nsite, ' sites\n', sep='')
-            cat(' Targe state c(',sep='')
-            Ly <- length(object@groups)
-            for(i in seq_len(Ly)){ 
-              cat(object@groups[i],sep='')
-              if(i < Ly) cat(',',sep='')
+            iy <- which(colnames(object@data)==object@y)
+            xi <- object@data[,-iy]
+            nvar <- ncol(xi)
+            if(object@type=='factors'){
+              predictors <- object@predictors
+              cat(' ',nvar, ' predictor states:\n',sep='')
+              for(i in seq_len(min(3,length(predictors))))
+                cat('  ',colnames(xi)[i],'=',predictors[[i]],'\n',sep=' ')
+              if(nvar > 3) cat('   ...\n',sep='')
             }
-            cat(')\n',sep='')
-            if(!is.null(object@data))
-              cat(' Sample size ',NROW(object@data),'\n',sep='')
+            else{ 
+              cat(' ',nvar,' numeric predictors:\n',sep='')
+              for(i in seq_len(min(3, nvar)))
+                cat('   [',min(xi[,i]),',',max(xi[,i]),']\n',sep='')
+              if(nvar > 3) cat('   ...\n',sep='')
+            }
+            cat(' Responses:\n  ', object@y,'=',object@groups, '\n',sep=' ')
+            cat(' Sample size: ',NROW(object@data),'\n',sep='')
           })
