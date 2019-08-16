@@ -22,6 +22,7 @@ train <- function(object, method='pseudo', L=NULL, lambda=0, eps=1, data=NULL,
   xi <- data[,colnames(data)!=object@y]
   y <- data[,colnames(data)==object@y]
   
+  nrl <- 0
   object@h <- object@J <- vector('list',Ly)
   lz <- c()
   for(iy in seq_len(Ly)){
@@ -37,12 +38,24 @@ train <- function(object, method='pseudo', L=NULL, lambda=0, eps=1, data=NULL,
       for(i in seq_len(NCOL(xidi)))
         xidi[,i] <- match(xid[,i],predictors[[i]])-1   # xidi = 0, ..., L-1
     }
-    mle <- mlestimate(xi=xidi, L=L, numeric=object@type=='numeric', lambda=lambda, 
-                      method=method, eps=eps, verbose=verbose-1)
+    mle <- mlestimate(xi=xidi, L=L, numeric=object@type=='numeric', 
+                      lambda=lambda, method=method, eps=eps, verbose=verbose-1)
     if(verbose>0 & method=='pseudo') 
       cat('  Maximum pseudo-likelihood = ',mle$mle,'\n\n',sep='')
+    
+    m <- length(object@predictors)
+    
+    for(i in seq(m)){
+      names(mle$h[[i]]) <- object@predictors[[i]][-1][seq_along(mle$h[[i]])]
+      for(j in seq(m)){
+        if(length(mle$J[[i]][[j]]==0)) next()
+        rownames(mle$J[[i]][[j]]) <- object@predictors[[i]][-1][seq_along(NROW(mle$J[[i]][[j]]))]
+        colnames(mle$J[[i]][[j]]) <- object@predictors[[j]][-1][seq_along(NCOL(mle$J[[i]][[j]]))]
+      }
+    }
     object@h[[iy]] <- mle$h
     object@J[[iy]] <- mle$J
+    
     if(method=='pseudo') lz <- c(lz,mle$lz)
   }
   

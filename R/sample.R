@@ -39,9 +39,8 @@ enum <- function(si, L, i, h, J, e=NULL, numeric=FALSE){
 #'          d'th element is a square matrix of dimension d.
 #' @param numeric Return numeric code of factors minus 1 (0,...,L-1)
 #' @export
-sample_si <- function(nsample=1, numeric=FALSE, L=NULL, predictors=NULL, 
-                      h, J, mc=FALSE, nstep=1000, progress.bar=TRUE, 
-                      code_out=FALSE){
+sample_xi <- function(nsample=1, numeric=FALSE, L=NULL, predictors=NULL, 
+                      h, J, nstep=1000, code_out=FALSE){
 
   if(numeric){ 
     if(is.null(L)) stop('L must be given for numeric model')
@@ -54,17 +53,9 @@ sample_si <- function(nsample=1, numeric=FALSE, L=NULL, predictors=NULL,
     nvar <- length(predictors)
   }
 
-  if(!mc){
-    e <- enum(si=rep(0,nvar), L=L, i=nvar, h, J, numeric=numeric)
-    sid <- sample(NROW(e), size=nsample, replace=TRUE, prob=e[,nvar+1])
-    si <- e[sid,seq_len(nvar)]
-  }
-  else{
-    mc <- mc.sample(si=rep(1,nsite),L=L,h,J,nstep=nstep, 
-                    progress.bar=progress.bar)
-    sid <- sample(nstep,size=nsample, replace=FALSE)
-    si <- mc[sid,]
-  }
+  e <- enum(si=rep(0,nvar), L=L, i=nvar, h, J, numeric=numeric)
+  sid <- sample(NROW(e), size=nsample, replace=TRUE, prob=e[,nvar+1])
+  si <- e[sid,seq_len(nvar)]
   
   if(!code_out & !numeric){
     for(i in seq_len(nvar)){
@@ -77,47 +68,6 @@ sample_si <- function(nsample=1, numeric=FALSE, L=NULL, predictors=NULL,
   rownames(fsi) <- seq_len(nsample)
   colnames(fsi) <- seq_len(nvar)
   return(fsi)
-}
-
-mc.sample <- function(si, L=L, h, J, nstep=1000, progress.bar=TRUE){
-  
-  N <- length(si)
-  dmax <- length(J)
-  sa <- NULL
-  pb <- txtProgressBar(style=3)
-  for(istep in seq_len(nstep)){
-    for(i in seq_len(N)){
-      sii <- si[i]
-      if(sii==1) e0 <- 0
-      else e0 <- energy(i, si, h, J)
-      sp <- seq_len(L)
-      sp <- sp[sp!=sii]
-      s2 <- sample(sp, size=1)
-      si2 <- si
-      si2[i] <- s2
-      if(s2==1 ) e1 <- 0
-      else e1 <- energy(i, si2, h, J)
-      de <- e1-e0
-      move <- TRUE
-      if(de>0) if(runif(n=1)<exp(-de)) move <- FALSE
-      if(move) si <- si2
-    }
-    sa <- rbind(sa,si)
-    setTxtProgressBar(pb,value=istep/nstep)
-  }
-  close(pb)
-  return(sa)
-}
-
-energy <- function(i, si, h, J){
-  
-  N <- length(si)
-  e <- h[si[i]-1]
-  for(j in seq_len(N)){
-    if(si[j]>1) 
-      e <- e + J[i,j,2*(si[i]-1)+si[j]-1]
-  }
-  return(e)
 }
 
 #' @export

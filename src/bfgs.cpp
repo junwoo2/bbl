@@ -206,7 +206,8 @@ void ln_dln_psl(const gsl_vector *x,void *params,double *f,gsl_vector *df){
 double lpr_psl(int i0, const vector<vector<short> > &ai, 
                const vector<short> &L, double lambda, 
                vector<double> &h, vector<vector<double> > &J, int nprint, 
-               unsigned int Imax, double Tol, int verbose, double &lz, bool numeric){
+               unsigned int Imax, double Tol, int verbose, double &lz, 
+               bool numeric){
 
   size_t iter=0;
   int status;
@@ -263,7 +264,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
     cerr << "BFGS2 iteration failed to converge after " 
          << Imax << " iterations\n";
 //  if(verbose > 0 && i0%max(nsnp/10,1)==0) 
-    if(verbose > 0) cout << " Site " << i0+1 << ": " << iter
+    if(verbose > 0) cout << "  Predictor " << i0+1 << ": " << iter
          << " iterations, likelihood = " << s->f << endl;
 
   h.resize(Lp[i0]);
@@ -296,10 +297,8 @@ void f12(int i0, const vector<vector<short> > &si, vector<double> &f1,
   f1.resize(L[i0]);
   f2.resize(m);
 
-  for(int l=0; l<L[i0]; l++)
-//  f1[l]=1.0/(1+L[i0]); 
-    f1[l]=0; 
-for(int i=0; i<m; i++){
+  for(int l=0; l<L[i0]; l++) f1[l]=0; 
+  for(int i=0; i<m; i++){
     f2[i].resize(L[i0]*L[i]);
     for(int l0=0; l0<L[i0]; l0++) for(int l1=0; l1<L[i]; l1++)
       f2[i][L[i]*l0+l1]=0;

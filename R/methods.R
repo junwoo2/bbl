@@ -2,13 +2,16 @@
 #' 
 #' @param newdata List of names \code{xi} and \code{y}; new data for 
 #'                which prediction is made
+#' @param L Forces uniform predictor levels
 #' @param logit Return predictors whose logistic function gives probability;
 #'              otherwise return probability itself
 #' @return Matrix of predictors/posterior proabilities
 #' @export
 setMethod('predict', 'bbm', function(object, newdata=NULL, logit=TRUE,
-                                     computeZ=FALSE, mf=FALSE, useC=TRUE){
+                                     L=NULL, computeZ=FALSE, mf=FALSE, 
+                                     useC=TRUE){
 
+# browser()
   if(is.null(newdata)) data <- object@data # self-prediction
   else data <- newdata
   iy <- which(object@y==colnames(data))
@@ -17,13 +20,14 @@ setMethod('predict', 'bbm', function(object, newdata=NULL, logit=TRUE,
   
   Ly <- length(object@groups)
   m <- NCOL(object@data) - 1
-  L <- NULL
-  for(i in seq_len(m)){
-    if(object@type=='numeric') 
-      L <- c(L, max(object@data[,i]))
-    else
-      L <- c(L, length(object@predictors[[i]]))
-  }
+  if(is.null(L)){
+    for(i in seq_len(m)){
+      if(object@type=='numeric') 
+        L <- c(L, max(object@data[,i])+1)
+      else
+        L <- c(L, length(object@predictors[[i]]))
+    }
+  } else L <- rep(L, m)
   
   h <- object@h
   J <- object@J
@@ -76,10 +80,13 @@ ham <- function(x, h, J, numeric){
   for(i in seq_len(m)){
     if(x[i]==0) next()
     if(numeric) e <- e + h[[i]][1]*x[i]
+    else if(length(h[[i]])<x[i]) next()
     else e <- e + h[[i]][x[i]]
     for(j in seq_len(m)){
       if(j==i | x[j]==0) next()
       if(numeric) e <- e + J[[i]][[j]]*x[i]*x[j]/2
+      else if(NROW(J[[i]][[j]])<x[i] | 
+              NCOL(J[[i]][[j]])<x[j]) next()
       else e <- e + J[[i]][[j]][x[i],x[j]]/2
     }
   }
@@ -102,12 +109,17 @@ Zeff <- function(L, m, h, J, xi, numeric, mf=mf){
       f0[i] <- 1 - sum(fi[[i]])
     }
     lz <- - sum(log(f0))
-    for(i in seq(1,m-1)) for(j in seq(i+1,m))
-      for(l0 in seq_len(Lp[i])) for(l1 in seq_len(Lp[j])){
-        dz <- J[[i]][[j]][l0,l1]*fi[[i]][l0]*fi[[j]][l1]
-        if(numeric) dz <- dz * l0*l1;
-        lz <- lz - dz
+    for(i in seq(1,m-1)){
+      for(j in seq(i+1,m)){
+        for(l0 in seq_len(Lp[i])) for(l1 in seq_len(Lp[j])){
+          if(NROW(J[[i]][[j]])<l0 |
+             NCOL(J[[i]][[j]])<l1) next()
+          dz <- J[[i]][[j]][l0,l1]*fi[[i]][l0]*fi[[j]][l1]
+          if(numeric) dz <- dz * l0*l1;
+          lz <- lz - dz
+        }
       }
+    }
     return(lz)
   }
     
@@ -116,6 +128,7 @@ Zeff <- function(L, m, h, J, xi, numeric, mf=mf){
     z <- 1
     for(a in seq(1, L[i]-1)){
       if(numeric) e <- h[[i]][1]*a
+      else if(length(h[[i]]) < a) next()
       else e <- h[[i]][a]
       for(j in seq(1,m)){
         if(j==i) next()
@@ -123,8 +136,8 @@ Zeff <- function(L, m, h, J, xi, numeric, mf=mf){
         if(xj==0) next()
         if(numeric)
           e <- e + J[[i]][[j]]*a*xj/2
-        else
-          e <- e + J[[i]][[j]][a,xj]/2
+        else if(NROW(J[[i]][[j]])<a | NCOL(J[[i]][[j]])<xj) next()
+        else e <- e + J[[i]][[j]][a,xj]/2
       }
       z <- z + exp(e)
     }

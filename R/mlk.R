@@ -47,15 +47,17 @@ mlestimate <- function(xi, method='pseudo', L=NULL, numeric=FALSE, lambda=0,
     h <- theta$h
     J <- vector('list',m)
     for(i in seq_len(m)) J[[i]] <- vector('list',m)
-    for(i in seq(1,m)) for(j in seq(i,m)){
-      x <- matrix(theta$J[[i]][[j]], nrow=Lp[i], ncol=Lp[j], byrow=TRUE)
-      xt <- matrix(theta$J[[j]][[i]], nrow=Lp[j], ncol=Lp[i], byrow=TRUE)
-      if(i<j & symmetrize){ 
-        x <- (x + t(xt))/2
-        xt <- t(x)
+    for(i in seq(1,m)){ 
+      for(j in seq(i,m)){
+        x <- matrix(theta$J[[i]][[j]], nrow=Lp[i], ncol=Lp[j], byrow=TRUE)
+        xt <- matrix(theta$J[[j]][[i]], nrow=Lp[j], ncol=Lp[i], byrow=TRUE)
+        if(i<j & symmetrize){ 
+          x <- (x + t(xt))/2
+          xt <- t(x)
+        }
+        J[[i]][[j]] <- x
+        J[[j]][[i]] <- xt
       }
-      J[[i]][[j]] <- x
-      J[[j]][[i]] <- xt
     }
     return(list(h=h, J=J, mle=theta$lkl, lz=theta$lz))
   }
@@ -85,18 +87,19 @@ meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, nullcount=0){
     }
   }
 
-  nullcount <- NULL
-  for(i in seq_len(nsite))
-    nullcount <- c(nullcount, rep(1/(Lp[i]+1),Lp[i]))
-  m0 <- (nullcount+colSums(csi))/(nsample+1)
+#  nullcount <- NULL
+#  for(i in seq_len(nsite))
+#    nullcount <- c(nullcount, rep(1/(Lp[i]+1),Lp[i]))
+#  m0 <- (nullcount + colSums(csi))/(nsample+1)
+  m0 <- colSums(csi)/nsample
   mi <- vector('list',nsite)
   Ls <- 0
   for(i in seq_len(nsite)){
     mi[[i]] <- m0[seq(Ls+1,Ls+Lp[i])]
     Ls <- Ls + Lp[i]
   }
-  
-  cij <- (t(csi) %*% csi + nullcount) / nsample
+  csi <- csi - matrix(m0, nrow=nsample, ncol=Ls, byrow=TRUE)
+  cij <- t(csi) %*% csi / nsample
   cijb <- eps*cij + (1-eps)*mean(diag(cij))*diag(1,nrow=NROW(cij))
 
   if(!numeric){
@@ -113,9 +116,9 @@ meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, nullcount=0){
     for(l in seq_len(Lp[i])){
       Lsj <- 0
       for(j in seq_len(nsite)){
-        if(i==j) next
-        for(q in seq_len(Lp[j])){
-          h[[i]][l] <- h[[i]][l] - Jij[Lsi+l, Lsj+q]*mi[[j]][q]
+        if(i!=j){
+          for(q in seq_len(Lp[j]))
+            h[[i]][l] <- h[[i]][l] - Jij[Lsi+l, Lsj+q]*mi[[j]][q]
         }
         Lsj <- Lsj + Lp[j]
       }

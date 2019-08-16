@@ -5,8 +5,9 @@ using namespace Rcpp;
 
 // [[Rcpp::export]]
 List pseudo_mle(NumericMatrix xi, LogicalVector Numeric,
-                NumericVector Lambda, IntegerVector Nprint, IntegerVector Itmax, 
-                NumericVector Tol, IntegerVector Verbose){
+                NumericVector Lambda, IntegerVector Nprint, 
+                IntegerVector Itmax, NumericVector Tol, 
+                IntegerVector Verbose){
   
   int n = xi.nrow();
   int m = xi.ncol();
@@ -14,10 +15,17 @@ List pseudo_mle(NumericMatrix xi, LogicalVector Numeric,
   for(int i=0; i<n; i++) for(int j=0; j<m; j++)
     sv[i].push_back(xi(i,j));
   std::vector<short> L(m);
+  std::vector<bool> bad(m);
   for(int i=0; i<m; i++){
+    short xmin=0;
     short xmax=0;
-    for(int k=0; k<n; k++) if(xmax<xi(k,i)) xmax=xi(k,i);
-    L[i]=xmax;  
+    for(int k=0; k<n; k++){ 
+      if(xmax<xi(k,i)) xmax=xi(k,i);
+      if(xmin>xi(k,i)) xmin=xi(k,i);
+    }
+    L[i]=xmax;
+    if(xmax==xmin) bad[i]=true;
+    else bad[i]=false;
   }
   
   std::vector<std::vector<double> > h(m);
@@ -34,8 +42,14 @@ List pseudo_mle(NumericMatrix xi, LogicalVector Numeric,
   double lz = 0;
   for(int i0=0; i0<m; i0++){
     double z=0;
-    lkl += lpr_psl(i0, sv, L, lambda, h[i0], J[i0], nprint, Imax, tol,
-                   verbose, z, numeric);
+    if(!bad[i0])
+      lkl += lpr_psl(i0, sv, L, lambda, h[i0], J[i0], nprint, Imax, tol,
+                   verbose, z, numeric); 
+    else{
+      h[i0].push_back(0);
+      J[i0].resize(m);
+      for(int j=0;j<m;j++) J[i0][j].push_back(0);
+    }
     lz += z;
   }
   lkl /= n;
@@ -66,13 +80,17 @@ NumericMatrix predict_class(IntegerMatrix xid, IntegerVector Ly, List h, List J,
         NumericVector hi = hy[i];
         if(numericmodel[0]) 
           e += hi(0)*xid(k,i);
-        else 
+        else if(hi.length() < xid(k,i)) continue;
+        else
           e += hi(xid(k,i)-1);
         List Ji = Jy[i];
         for(int j=0; j<m; j++){
           if(j==i || xid(k,j)==0) continue;
           NumericMatrix Jj = Ji[j];
+//        std::cout << k << " " << iy << " " << i << " " << j << std::endl;
           if(numericmodel[0]) e += Jj(0,0)*xid(k,i)*xid(k,j)/2.0;
+          else if(Jj.nrow()<xid(k,i) ||
+                  Jj.ncol()<xid(k,j)) continue;
           else e += Jj(xid(k,i)-1,xid(k,j)-1)/2.0;
         }
       }

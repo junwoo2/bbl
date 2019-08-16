@@ -1,7 +1,7 @@
 #' Cross-validation run
 #' @export
-crossval <- function(object, lambda=0, nfold=5, method='pseudo', eps=1, 
-                     L=NULL, auc=TRUE, naive=FALSE, verbose=1, 
+crossval <- function(object, lambda=0.1, nfold=5, method='pseudo', 
+                     eps=0.9, L=NULL, auc=TRUE, naive=FALSE, verbose=1, 
                      computeZ=FALSE, mf=TRUE, useC=TRUE){
   
   groups <- object@groups
@@ -49,7 +49,7 @@ crossval <- function(object, lambda=0, nfold=5, method='pseudo', eps=1,
         computeZ <- TRUE
       } 
       pr <- predict(object=obtrain, newdata=obval@data, logit=TRUE,
-                    computeZ=computeZ, mf=mf, useC=useC)
+                    L=L, computeZ=computeZ, mf=mf, useC=useC)
       pred <- rbind(pred, cbind(data.frame(y=y[ival], pr)))
     }
     if(auc){ auc <- pROC::roc(response=pred$y, levels=groups, 
