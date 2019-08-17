@@ -2,7 +2,7 @@
 #' @export
 crossval <- function(object, lambda=0.1, nfold=5, method='pseudo', 
                      eps=0.9, L=NULL, auc=TRUE, naive=FALSE, verbose=1, 
-                     computeZ=FALSE, mf=TRUE, useC=TRUE){
+                     computeZ=FALSE, mf=TRUE, useC=TRUE, prior.count=TRUE){
   
   groups <- object@groups
   Ly <- length(groups)
@@ -43,9 +43,11 @@ crossval <- function(object, lambda=0.1, nfold=5, method='pseudo',
       obval <- object[ival,]
       obtrain <- object[itrain,]
       if(method=='pseudo')
-        obtrain <- train(object=obtrain, L=L, lambda=reg, method=method, verbose=verbose-1)
+        obtrain <- train(object=obtrain, L=L, lambda=reg, method=method, 
+                         prior.count=prior.count, verbose=verbose-1)
       else{
-        obtrain <- train(object=obtrain, L=L, eps=reg, method=method, verbose=verbose-1)
+        obtrain <- train(object=obtrain, L=L, eps=reg, method=method, 
+                         prior.count=prior.count, verbose=verbose-1)
         computeZ <- TRUE
       } 
       pr <- predict(object=obtrain, newdata=obval@data, logit=TRUE,

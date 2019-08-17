@@ -7,7 +7,7 @@
 #' @param verbose Output verbosity
 #' @export
 train <- function(object, method='pseudo', L=NULL, lambda=0, eps=1, data=NULL, 
-                  verbose=1){
+                  verbose=1, prior.count=TRUE){
   
   predictors <- object@predictors
   groups <- object@groups
@@ -39,7 +39,8 @@ train <- function(object, method='pseudo', L=NULL, lambda=0, eps=1, data=NULL,
         xidi[,i] <- match(xid[,i],predictors[[i]])-1   # xidi = 0, ..., L-1
     }
     mle <- mlestimate(xi=xidi, L=L, numeric=object@type=='numeric', 
-                      lambda=lambda, method=method, eps=eps, verbose=verbose-1)
+                      lambda=lambda, method=method, eps=eps, verbose=verbose-1,
+                      prior.count=prior.count)
     if(verbose>0 & method=='pseudo') 
       cat('  Maximum pseudo-likelihood = ',mle$mle,'\n\n',sep='')
     
@@ -49,8 +50,10 @@ train <- function(object, method='pseudo', L=NULL, lambda=0, eps=1, data=NULL,
       names(mle$h[[i]]) <- object@predictors[[i]][-1][seq_along(mle$h[[i]])]
       for(j in seq(m)){
         if(length(mle$J[[i]][[j]]==0)) next()
-        rownames(mle$J[[i]][[j]]) <- object@predictors[[i]][-1][seq_along(NROW(mle$J[[i]][[j]]))]
-        colnames(mle$J[[i]][[j]]) <- object@predictors[[j]][-1][seq_along(NCOL(mle$J[[i]][[j]]))]
+        rownames(mle$J[[i]][[j]]) <- 
+          object@predictors[[i]][-1][seq_along(NROW(mle$J[[i]][[j]]))]
+        colnames(mle$J[[i]][[j]]) <- 
+          object@predictors[[j]][-1][seq_along(NCOL(mle$J[[i]][[j]]))]
       }
     }
     object@h[[iy]] <- mle$h

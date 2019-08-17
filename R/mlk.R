@@ -25,7 +25,7 @@
 
 mlestimate <- function(xi, method='pseudo', L=NULL, numeric=FALSE, lambda=0, 
                        symmetrize=TRUE, eps=1, nprint=100, itmax=10000,
-                       tolerance=1e-5, verbose=1, nullcount=1){
+                       tolerance=1e-5, verbose=1, prior.count=TRUE){
   
   m <- NCOL(xi)
   if(is.null(L))
@@ -64,61 +64,84 @@ mlestimate <- function(xi, method='pseudo', L=NULL, numeric=FALSE, lambda=0,
   else if(method %in% c('mf','nb')){
     if(method=='nb') eps <- 0  # no interaction
     theta <- meanfield(xi=xi, L=L, Lp=Lp, eps=eps, numeric=numeric,
-                       nullcount=nullcount)
+                       prior.count=prior.count)
     return(list(h=theta$h, J=theta$J))
   } else stop('unknown method in mlestimate')
 
 }
 
-meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, nullcount=0){
+meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, prior.count=TRUE){
 
   nsite <- ncol(xi)
   nsample <- nrow(xi)
-
-  csi <- matrix(0, nrow=nsample, ncol=sum(Lp))
+  
+  bad <- colSums(xi)==0  # predictors without variations
+  id <- which(!bad)      # index in original vector of those that are good
+  nvar <- nsite - sum(bad)
+  xir <- xi[,!bad]
+  
+  csi <- matrix(0, nrow=nsample, ncol=sum(Lp[!bad]))
   for(k in seq_len(nsample)){ 
     Ls <- 0
-    for(i in seq_len(nsite)){
-      if(xi[k,i]>0){
-        if(numeric) csi[k, Ls+1] <- xi[k,i]
-        else csi[k, Ls+xi[k,i]] <- 1
+    for(i in seq_len(nvar)){
+      if(xir[k,i]>0){
+        if(numeric) csi[k, Ls+1] <- xir[k,i]
+        else csi[k, Ls+xir[k,i]] <- 1
       }
-      Ls <- Ls + Lp[i]
+      Ls <- Ls + Lp[id[i]]
     }
   }
 
-#  nullcount <- NULL
-#  for(i in seq_len(nsite))
-#    nullcount <- c(nullcount, rep(1/(Lp[i]+1),Lp[i]))
-#  m0 <- (nullcount + colSums(csi))/(nsample+1)
-  m0 <- colSums(csi)/nsample
-  mi <- vector('list',nsite)
+  if(prior.count){
+    count0 <- NULL
+    for(i in seq_len(nvar)){
+      w <- Lp[id[i]]
+      count0 <- c(count0, rep(1/(w+1),w))
+    }
+    m0 <- (count0 + colSums(csi))/(nsample+1)
+  } else
+    m0 <- colSums(csi) /nsample
+  mi <- vector('list',nvar)
   Ls <- 0
-  for(i in seq_len(nsite)){
-    mi[[i]] <- m0[seq(Ls+1,Ls+Lp[i])]
-    Ls <- Ls + Lp[i]
+  for(i in seq_len(nvar)){
+    mi[[i]] <- m0[seq(Ls+1,Ls+Lp[id[i]])]
+    Ls <- Ls + Lp[id[i]]
   }
   csi <- csi - matrix(m0, nrow=nsample, ncol=Ls, byrow=TRUE)
-  cij <- t(csi) %*% csi / nsample
+  if(prior.count){
+    csi <- csi + matrix(count0/nsample, nrow=nsample, ncol=NCOL(csi), byrow=TRUE)
+    cij <- t(csi) %*% csi / (nsample + 1)
+  }
+  else
+    cis <- t(csi) %*% csi / nsample
+  
   cijb <- eps*cij + (1-eps)*mean(diag(cij))*diag(1,nrow=NROW(cij))
 
   if(!numeric){
     h <- vector('list',nsite)
-    for(i in seq_len(nsite)) 
-      h[[i]] <- log(mi[[i]]/(1-sum(mi[[i]])))
+    for(i in seq_len(nsite)){
+      if(bad[i]) h[[i]] <- 0
+      else{
+        mx <- mi[[which(id==i)]]
+        h[[i]] <- log(mx/(1-sum(mx)))
+      }
+    }
   } else
-    h <- invav(mi,L)
+    h <- invav(mi,L, bad)
 
-  Jij <- solve(a=cijb, b=diag(-1, nrow=sum(Lp)))
+  Jij <- solve(a=cijb, b=diag(-1, nrow=sum(Lp[!bad])))
   diag(Jij) <- 0
   Lsi <- 0
   for(i in seq_len(nsite)){
+    if(bad[i]) next()
     for(l in seq_len(Lp[i])){
       Lsj <- 0
       for(j in seq_len(nsite)){
         if(i!=j){
+          if(bad[j]) next()
+          mx <- mi[[which(id==j)]]
           for(q in seq_len(Lp[j]))
-            h[[i]][l] <- h[[i]][l] - Jij[Lsi+l, Lsj+q]*mi[[j]][q]
+            h[[i]][l] <- h[[i]][l] - Jij[Lsi+l, Lsj+q]*mx[q]
         }
         Lsj <- Lsj + Lp[j]
       }
@@ -128,19 +151,26 @@ meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, nullcount=0){
 
   J <- vector('list',nsite)
   Lsi <- 0
-  for(i in seq_len(nsite)){ 
+  for(i in seq_len(nsite)){
     J[[i]] <- vector('list',nsite)
+    if(bad[i]){
+      for(j in seq(nsite)) J[[i]][[j]] <- matrix(0)
+      next()
+    }
     Lsj <- 0
     for(j in seq_len(nsite)){
-      w <- matrix(0, nrow=Lp[i], ncol=Lp[j])
-      if(i==j){ 
-        J[[i]][[i]] <- w
+      if(bad[j]){ 
+        J[[i]][[j]] <- matrix(0)
         next()
       }
-      for(l in seq_len(Lp[i])) for(q in seq_len(Lp[j]))
-        w[l,q] <- Jij[Lsi+l,Lsj+q]
-      J[[i]][[j]] <- w
-      J[[j]][[i]] <- t(w)
+      w <- matrix(0, nrow=Lp[i], ncol=Lp[j])
+      if(i==j) J[[i]][[i]] <- w
+      else{ 
+        for(l in seq_len(Lp[i])) for(q in seq_len(Lp[j]))
+          w[l,q] <- Jij[Lsi+l,Lsj+q]
+        J[[i]][[j]] <- w
+        J[[j]][[i]] <- t(w)
+      }
       Lsj <- Lsj + Lp[j]
     }
     Lsi <- Lsi + Lp[i]
@@ -151,7 +181,7 @@ meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, nullcount=0){
 
 # Inverse function of mean single-site average mi
 
-invav <- function(mi, L){
+invav <- function(mi, L, bad){
   
   f <- function(h, m, L){
     up <- down <- 0
@@ -165,13 +195,17 @@ invav <- function(mi, L){
   }
   
   z <- list()
+  id <- which(!bad)
   for(i in seq_along(mi)){ 
-    zm <- NULL
-    for(m in mi[[i]]){
-      if(m==0) hi <- -Inf
-      else if(m==L[i]) hi <- Inf
-      else hi <- uniroot(f, interval=c(-10,10), m=m, L=L[i])$root
-      zm <- c(zm, hi)
+    if(bad[i]) zm <- rep(0, length(mi[[i]]))
+    else{
+      zm <- NULL
+      for(m in mi[[id==i]]){
+        if(m==0) hi <- -Inf
+        else if(m==L[i]) hi <- Inf
+        else hi <- uniroot(f, interval=c(-10,10), m=m, L=L[i])$root
+        zm <- c(zm, hi)
+      }
     }
     z[[i]] <- zm
   }

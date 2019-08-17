@@ -11,7 +11,6 @@ setMethod('predict', 'bbm', function(object, newdata=NULL, logit=TRUE,
                                      L=NULL, computeZ=FALSE, mf=FALSE, 
                                      useC=TRUE){
 
-# browser()
   if(is.null(newdata)) data <- object@data # self-prediction
   else data <- newdata
   iy <- which(object@y==colnames(data))
