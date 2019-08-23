@@ -1,19 +1,20 @@
 #' Train cRfm model 
 #' @param lambda Penalizer
-#' @param object \code{bbm} object for model
+#' @param object \code{bbl} object for model
 #' @param data Data frame of training data. The column named \code{y} is
 #'             used as group variables
 #' @param naive Naive Bayes (no interaction; \code{J}=0)
 #' @param verbose Output verbosity
 #' @export
 train <- function(object, method='pseudo', L=NULL, lambda=0, eps=1, data=NULL, 
-                  verbose=1, prior.count=TRUE){
+                  verbose=1, prior.count=TRUE, naive=FALSE){
   
   predictors <- object@predictors
   groups <- object@groups
   Ly <- length(groups)
   if(Ly < 2) stop('No. of groups < 2')
   
+  if(method=='pseudo' & naive) stop('Naive Bayes requires use of "mf"')
   if(is.null(data))
     data <- object@data
   else if(!object@y %in% colnames(data)) 
@@ -40,7 +41,7 @@ train <- function(object, method='pseudo', L=NULL, lambda=0, eps=1, data=NULL,
     }
     mle <- mlestimate(xi=xidi, L=L, numeric=object@type=='numeric', 
                       lambda=lambda, method=method, eps=eps, verbose=verbose-1,
-                      prior.count=prior.count)
+                      prior.count=prior.count, naive=naive)
     if(verbose>0 & method=='pseudo') 
       cat('  Maximum pseudo-likelihood = ',mle$mle,'\n\n',sep='')
     
@@ -48,21 +49,23 @@ train <- function(object, method='pseudo', L=NULL, lambda=0, eps=1, data=NULL,
     
     for(i in seq(m)){
       names(mle$h[[i]]) <- object@predictors[[i]][-1][seq_along(mle$h[[i]])]
+      if(naive) next()
       for(j in seq(m)){
-        if(length(mle$J[[i]][[j]]==0)) next()
-        rownames(mle$J[[i]][[j]]) <- 
-          object@predictors[[i]][-1][seq_along(NROW(mle$J[[i]][[j]]))]
-        colnames(mle$J[[i]][[j]]) <- 
-          object@predictors[[j]][-1][seq_along(NCOL(mle$J[[i]][[j]]))]
+        if(NROW(mle$J[[i]][[j]])>0)
+          rownames(mle$J[[i]][[j]]) <- 
+            object@predictors[[i]][-1][seq(NROW(mle$J[[i]][[j]]))]
+        if(NCOL(mle$J[[i]][[j]])>0)
+          colnames(mle$J[[i]][[j]]) <- 
+            object@predictors[[j]][-1][seq(NCOL(mle$J[[i]][[j]]))]
       }
     }
     object@h[[iy]] <- mle$h
     object@J[[iy]] <- mle$J
     
-    if(method=='pseudo') lz <- c(lz,mle$lz)
+    lz <- c(lz,mle$lz)
   }
   
-  if(method=='pseudo') object@lz <- lz
+  object@lz <- lz
   object@data <- data
   return(object)
 } 

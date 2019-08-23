@@ -1,4 +1,4 @@
-#' Predict class from new data using bbm model
+#' Predict class from new data using bbl model
 #' 
 #' @param newdata List of names \code{xi} and \code{y}; new data for 
 #'                which prediction is made
@@ -7,15 +7,26 @@
 #'              otherwise return probability itself
 #' @return Matrix of predictors/posterior proabilities
 #' @export
-setMethod('predict', 'bbm', function(object, newdata=NULL, logit=TRUE,
-                                     L=NULL, computeZ=FALSE, mf=FALSE, 
-                                     useC=TRUE){
+setMethod('predict', 'bbl', function(object, newdata=NULL, logit=TRUE,
+                                     L=NULL, useC=TRUE, verbose=1, naive=FALSE,
+                                     progress.bar=FALSE){
 
-  if(is.null(newdata)) data <- object@data # self-prediction
-  else data <- newdata
-  iy <- which(object@y==colnames(data))
-  xi <- data[,-iy]
-  y <- data[,iy]
+  if(verbose<=0) progress.bar <- FALSE
+# browser()
+  iy <- which(object@y==colnames(object@data))
+  y <- object@data[,iy]   # y is from training data
+  xi0 <- object@data[,-iy]
+  
+  if(is.null(newdata)) 
+    data <- xi0           # self-prediction
+  else{
+    if(object@y %in% colnames(newdata))
+      newdata <- newdata[,colnames(newdata)!=object@y]
+    if(NCOL(newdata)!= NCOL(xi0)) 
+      stop('Test data predictors do not match model')
+    if(!is.null(colnames(newdata)))
+      xi <- newdata[,match(colnames(newdata),colnames(xi0))]
+  }
   
   Ly <- length(object@groups)
   m <- NCOL(object@data) - 1
@@ -38,32 +49,39 @@ setMethod('predict', 'bbm', function(object, newdata=NULL, logit=TRUE,
     xid <- as.matrix(xi)
   }else{
     xid <- matrix(0, nrow=nsample, ncol=m)
-    for(i in seq_len(m))
+    for(i in seq_len(m)){
+      if(sum(!levels(factor(xi[,i])) %in% object@predictors[[i]])>0)
+        stop('Levels in test data not in trained model')
       xid[,i] <- match(xi[,i],object@predictors[[i]]) - 1
+    }
   }
   
   for(iy in seq_len(Ly)){
-    if(computeZ)
-      lz[iy] <- Zeff(L, m, h[[iy]], J[[iy]], xid, object@type=='numeric', mf=mf)  # log partition function
-    else
-      lz[iy] <- object@lz[iy]
+    if(length(h[[iy]])!=NCOL(xi) | length(J[[iy]])!=NCOL(xi))
+      stop('Parameters and data sizes do not match')
+    lz[iy] <- object@lz[iy]
     py[iy] <- sum(y==object@groups[iy])        # marginal distribution P(y)
   }
   py <- py/nsample
   
-  if(!useC){
-    ay <- matrix(0, nrow=nsample, ncol=Ly)
+  ay <- matrix(0, nrow=nsample, ncol=Ly)
+  if(verbose>0) cat(' predicting group probabilities...\n')
+  if(progress.bar) pb <- txtProgressBar(style=3)
     for(k in seq_len(nsample)){
-      x <- xid[k,]
+    x <- xid[k,]
+    if(!useC){
       E <- rep(0, Ly)
       for(iy in seq_len(Ly))
-        E[iy] <- ham(x, h[[iy]], J[[iy]], 
-                     numeric=object@type=='numeric') - lz[iy] + log(py[iy])
-      for(iy in seq_len(Ly))
-        ay[k,iy] <- -log(sum(exp(E[-iy]-E[iy])))
-    }
-  }else
-    ay <- predict_class(xid, c(Ly), h, J, c(object@type=='numeric'), lz, py)
+        E[iy] <- ham(x, h[[iy]], J[[iy]], numeric=object@type=='numeric',
+                     naive=naive) - lz[iy] + log(py[iy])
+    }else
+      E <- predict_class(x, c(Ly), h, J, c(object@type=='numeric'), lz, py,
+                         c(naive))
+    for(iy in seq_len(Ly))
+      ay[k,iy] <- -log(sum(exp(E[-iy]-E[iy])))
+    if(progress.bar) setTxtProgressBar(pb, k/nsample)
+  }
+  if(progress.bar) close(pb)
 
   if(!logit) ay <- 1/(1+exp(-ay))  # posterior probability
   rownames(ay) <- seq_len(nsample)
@@ -71,7 +89,7 @@ setMethod('predict', 'bbm', function(object, newdata=NULL, logit=TRUE,
   return(ay)
 })
 
-ham <- function(x, h, J, numeric){
+ham <- function(x, h, J, numeric, naive){
 
   m <- length(h)
   
@@ -81,6 +99,7 @@ ham <- function(x, h, J, numeric){
     if(numeric) e <- e + h[[i]][1]*x[i]
     else if(length(h[[i]])<x[i]) next()
     else e <- e + h[[i]][x[i]]
+    if(naive) next()
     for(j in seq_len(m)){
       if(j==i | x[j]==0) next()
       if(numeric) e <- e + J[[i]][[j]]*x[i]*x[j]/2
@@ -92,63 +111,8 @@ ham <- function(x, h, J, numeric){
   return(e)  
 }
 
-# Pseudo partition function using data xi
-Zeff <- function(L, m, h, J, xi, numeric, mf=mf){
-  
-  nsample <- NROW(xi)
-  if(numeric) Lp <- rep(1, m)
-  else Lp <- L-1
-  if(mf){
-    fi <- vector('list',m)
-    f0 <- rep(0, m)
-    for(i in seq_len(m)){
-      fi[[i]] <- rep(0, L[i]-1)
-      for(l in seq_len(L[i]-1))
-        fi[[i]][l] <- mean(xi[,i]==l)
-      f0[i] <- 1 - sum(fi[[i]])
-    }
-    lz <- - sum(log(f0))
-    for(i in seq(1,m-1)){
-      for(j in seq(i+1,m)){
-        for(l0 in seq_len(Lp[i])) for(l1 in seq_len(Lp[j])){
-          if(NROW(J[[i]][[j]])<l0 |
-             NCOL(J[[i]][[j]])<l1) next()
-          dz <- J[[i]][[j]][l0,l1]*fi[[i]][l0]*fi[[j]][l1]
-          if(numeric) dz <- dz * l0*l1;
-          lz <- lz - dz
-        }
-      }
-    }
-    return(lz)
-  }
-    
-  lz <- 0
-  for(k in seq_len(nsample)) for(i in seq_len(m)){
-    z <- 1
-    for(a in seq(1, L[i]-1)){
-      if(numeric) e <- h[[i]][1]*a
-      else if(length(h[[i]]) < a) next()
-      else e <- h[[i]][a]
-      for(j in seq(1,m)){
-        if(j==i) next()
-        xj <- xi[k,j]
-        if(xj==0) next()
-        if(numeric)
-          e <- e + J[[i]][[j]]*a*xj/2
-        else if(NROW(J[[i]][[j]])<a | NCOL(J[[i]][[j]])<xj) next()
-        else e <- e + J[[i]][[j]][a,xj]/2
-      }
-      z <- z + exp(e)
-    }
-    lz <- lz + log(z)
-  }
-  lz <- lz/nsample
-  
-  return(lz)
-}
-
 #' @export
-setMethod('[', 'bbm', function(x,i,j){
+setMethod('[', 'bbl', function(x,i,j){
   
   if(!missing(i)){
     i <- as.vector(i)

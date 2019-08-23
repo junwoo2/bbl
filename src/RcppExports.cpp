@@ -6,8 +6,8 @@
 using namespace Rcpp;
 
 // pseudo_mle
-List pseudo_mle(NumericMatrix xi, LogicalVector Numeric, NumericVector Lambda, IntegerVector Nprint, IntegerVector Itmax, NumericVector Tol, IntegerVector Verbose);
-RcppExport SEXP _bbm_pseudo_mle(SEXP xiSEXP, SEXP NumericSEXP, SEXP LambdaSEXP, SEXP NprintSEXP, SEXP ItmaxSEXP, SEXP TolSEXP, SEXP VerboseSEXP) {
+List pseudo_mle(NumericMatrix xi, LogicalVector Numeric, NumericVector Lambda, IntegerVector Nprint, IntegerVector Itmax, NumericVector Tol, LogicalVector Naive, IntegerVector Verbose);
+RcppExport SEXP _bbl_pseudo_mle(SEXP xiSEXP, SEXP NumericSEXP, SEXP LambdaSEXP, SEXP NprintSEXP, SEXP ItmaxSEXP, SEXP TolSEXP, SEXP NaiveSEXP, SEXP VerboseSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -17,36 +17,38 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< IntegerVector >::type Nprint(NprintSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type Itmax(ItmaxSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type Tol(TolSEXP);
+    Rcpp::traits::input_parameter< LogicalVector >::type Naive(NaiveSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type Verbose(VerboseSEXP);
-    rcpp_result_gen = Rcpp::wrap(pseudo_mle(xi, Numeric, Lambda, Nprint, Itmax, Tol, Verbose));
+    rcpp_result_gen = Rcpp::wrap(pseudo_mle(xi, Numeric, Lambda, Nprint, Itmax, Tol, Naive, Verbose));
     return rcpp_result_gen;
 END_RCPP
 }
 // predict_class
-NumericMatrix predict_class(IntegerMatrix xid, IntegerVector Ly, List h, List J, LogicalVector numericmodel, NumericVector lz, NumericVector py);
-RcppExport SEXP _bbm_predict_class(SEXP xidSEXP, SEXP LySEXP, SEXP hSEXP, SEXP JSEXP, SEXP numericmodelSEXP, SEXP lzSEXP, SEXP pySEXP) {
+NumericVector predict_class(IntegerVector xid, IntegerVector Ly, List h, List J, LogicalVector numericmodel, NumericVector lz, NumericVector py, LogicalVector Naive);
+RcppExport SEXP _bbl_predict_class(SEXP xidSEXP, SEXP LySEXP, SEXP hSEXP, SEXP JSEXP, SEXP numericmodelSEXP, SEXP lzSEXP, SEXP pySEXP, SEXP NaiveSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< IntegerMatrix >::type xid(xidSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type xid(xidSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type Ly(LySEXP);
     Rcpp::traits::input_parameter< List >::type h(hSEXP);
     Rcpp::traits::input_parameter< List >::type J(JSEXP);
     Rcpp::traits::input_parameter< LogicalVector >::type numericmodel(numericmodelSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type lz(lzSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type py(pySEXP);
-    rcpp_result_gen = Rcpp::wrap(predict_class(xid, Ly, h, J, numericmodel, lz, py));
+    Rcpp::traits::input_parameter< LogicalVector >::type Naive(NaiveSEXP);
+    rcpp_result_gen = Rcpp::wrap(predict_class(xid, Ly, h, J, numericmodel, lz, py, Naive));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_bbm_pseudo_mle", (DL_FUNC) &_bbm_pseudo_mle, 7},
-    {"_bbm_predict_class", (DL_FUNC) &_bbm_predict_class, 7},
+    {"_bbl_pseudo_mle", (DL_FUNC) &_bbl_pseudo_mle, 8},
+    {"_bbl_predict_class", (DL_FUNC) &_bbl_predict_class, 8},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_bbm(DllInfo *dll) {
+RcppExport void R_init_bbl(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

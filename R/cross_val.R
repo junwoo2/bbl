@@ -1,8 +1,9 @@
 #' Cross-validation run
 #' @export
 crossval <- function(object, lambda=0.1, nfold=5, method='pseudo', 
-                     eps=0.9, L=NULL, auc=TRUE, naive=FALSE, verbose=1, 
-                     computeZ=FALSE, mf=TRUE, useC=TRUE, prior.count=TRUE){
+                     naive=FALSE, eps=0.9, L=NULL, auc=TRUE, verbose=1, 
+                     useC=TRUE, prior.count=TRUE,
+                     progress.bar=TRUE){
   
   groups <- object@groups
   Ly <- length(groups)
@@ -12,8 +13,10 @@ crossval <- function(object, lambda=0.1, nfold=5, method='pseudo',
   if(Ly!=2) auc <- FALSE
   
   if(method=='pseudo') reglist <- lambda
-  else if(method=='mf') reglist <- eps
-  else if(method=='nb') reglist <- eps <- 0
+  else if(method=='mf'){ 
+    if(!naive) reglist <- eps
+    else reglist <- 0
+  }
   else stop('Unknown method')
   
   res <- NULL
@@ -44,14 +47,15 @@ crossval <- function(object, lambda=0.1, nfold=5, method='pseudo',
       obtrain <- object[itrain,]
       if(method=='pseudo')
         obtrain <- train(object=obtrain, L=L, lambda=reg, method=method, 
-                         prior.count=prior.count, verbose=verbose-1)
-      else{
+                         prior.count=prior.count, naive=naive,
+                         verbose=verbose-1)
+      else
         obtrain <- train(object=obtrain, L=L, eps=reg, method=method, 
-                         prior.count=prior.count, verbose=verbose-1)
-        computeZ <- TRUE
-      } 
+                         prior.count=prior.count, naive=naive,
+                         verbose=verbose-1)
       pr <- predict(object=obtrain, newdata=obval@data, logit=TRUE,
-                    L=L, computeZ=computeZ, mf=mf, useC=useC)
+                    L=L, useC=useC, progress.bar=progress.bar, 
+                    verbose=verbose-1, naive=naive)
       pred <- rbind(pred, cbind(data.frame(y=y[ival], pr)))
     }
     if(auc){ auc <- pROC::roc(response=pred$y, levels=groups, 

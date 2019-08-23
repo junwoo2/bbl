@@ -1,9 +1,9 @@
-Package: bbm
+Package: bbl
 Type: Package
-Title: Bayesian Boltmann Machine Learner
+Title: Boltmann Bayes Learner
 Version: 0.1.0
 Authors@R: c(person('Jun','Woo',role=c('aut','cre'),email='jwoo@umn.edu'))
-Description: Supervised learning using Bayesian Boltmann machine
+Description: Supervised learning using Boltzmann Bayes inference
 Depends: R (>= 3.6.0)
 License: GPL
 Imports: Rcpp (>= 0.12.16),

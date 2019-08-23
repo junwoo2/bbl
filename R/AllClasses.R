@@ -1,10 +1,10 @@
-#' Class \code{bbm} Bayesian Boltzmann model)
+#' Class \code{bbl} Boltzmann Bayes learner)
 #' @slot predictors If a vector of characters, finite number of factors; 
 #'                  if \code{'numeric'}, multiplicative model
-#' @export bbm
-#' @useDynLib bbm
+#' @export bbl
+#' @useDynLib bbl
 #' @importFrom Rcpp evalCpp
-bbm <- setClass('bbm',
+bbl <- setClass('bbl',
                slots=c(type='character',   # factor or numeric
                        predictors='list',  # predictor factor levels
                        groups='character', # response factor levels
@@ -15,14 +15,15 @@ bbm <- setClass('bbm',
                        lz='numeric'     # log partition function
 ))
 #' @export
-setMethod('initialize', signature=('bbm'),
-          definition=function(.Object, type='factors',predictors=NULL, groups=NULL,
-                              data, y='y', ...){
+setMethod('initialize', signature=('bbl'),
+          definition=function(.Object, type='factors',predictors=NULL, 
+                              groups=NULL, data, y='y', ...){
             if(!is.data.frame(data))
               data <- as.data.frame(data)
             if(!y %in% colnames(data)) stop(paste0(y,' not in data'))
             iy <- which(colnames(data)==y)
-            if(is.null(groups)) groups <- levels(factor(data[,iy]))
+            if(is.null(groups)) 
+              groups <- levels(factor(data[,iy]))
             xi <- data[,-iy]
             nvar <- ncol(xi)
             if(type=='numeric') predictors <- list('numeric')
@@ -30,10 +31,12 @@ setMethod('initialize', signature=('bbm'),
             cnt <- NULL
             for(i in seq_len(nvar)){
               fac <- levels(factor(xi[,i]))
+              fac <- fac[order(fac)]
               if(length(fac)==1) next()
               cnt <- c(cnt, i)
               if(type=='factors') predictors[[length(cnt)]] <- fac
             }
+            if(length(cnt)==0) stop('No variable with multiple levels')
             if(length(cnt)<nvar){
               cat(' ',nvar-length(cnt),' variables with one level removed\n',
                     sep='')
@@ -45,7 +48,7 @@ setMethod('initialize', signature=('bbm'),
             return(.Object)
           })
 #' @export
-setMethod('show', signature='bbm',
+setMethod('show', signature='bbl',
           definition=function(object){
             cat('An object of class ', class(object),'\n', sep='')
             iy <- which(colnames(object@data)==object@y)

@@ -40,7 +40,7 @@ enum <- function(si, L, i, h, J, e=NULL, numeric=FALSE){
 #' @param numeric Return numeric code of factors minus 1 (0,...,L-1)
 #' @export
 sample_xi <- function(nsample=1, numeric=FALSE, L=NULL, predictors=NULL, 
-                      h, J, nstep=1000, code_out=FALSE){
+                      h, J, code_out=FALSE){
 
   if(numeric){ 
     if(is.null(L)) stop('L must be given for numeric model')
