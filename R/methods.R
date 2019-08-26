@@ -1,25 +1,76 @@
-#' Predict class from new data using bbl model
+#' Predict Response Group Using \code{bbl} Model
 #' 
-#' @param newdata List of names \code{xi} and \code{y}; new data for 
-#'                which prediction is made
-#' @param L Forces uniform predictor levels
+#' Make prediction of response group identity based on trained model
+#' 
+#' Will use new data set for predictors and trained \code{bbl} model
+#' parameters and compute posterior probabilities of response group 
+#' identity.
+#' 
+#' @param object Object of class \code{bbl} containing trained model
+#' @param newdata Data frame of new data for which prediction is to
+#'        be made. Columns must contain all of those in \code{model@data}.
+#'        If column names are present, the columns will be matched 
+#'        based on them. Extra columns will be ignored. If column names
+#'        are not provided, the columns should exactly match 
+#'        \code{model@data} predictor parts. If \code{NULL}, replaced
+#'        by \code{model@data} (self-prediction).
 #' @param logit Return predictors whose logistic function gives probability;
-#'              otherwise return probability itself
-#' @return Matrix of predictors/posterior proabilities
+#'              otherwise return probability itself.
+#' @param useC Use \code{C++} version for posterior probability computation.
+#' @param verbose Verbosity level
+#' @param naive Naive Bayes. Skip all interaction terms.
+#' @param progress.bar Display progress of response group probability. Useful
+#'        for large samples.
+#' @return Matrix of predictors/posterior proabilities with samples in rows
+#'         and response groups in columns.
+#' @examples
+#' set.seed(154)
+#' 
+#' m <- 5
+#' L <- 3
+#' n <- 1000
+#' 
+#' predictors <- list()
+#' for(i in 1:m) predictors[[i]] <- seq(0,L-1)
+#' par0 <- randompar(predictors=predictors, h0=0, J0=0, dJ=0.5)
+#' xi0 <- sample_xi(nsample=n, predictors=predictors, h=par0$h, J=par0$J) 
+#'
+#' par1 <- randompar(predictors=predictors, h0=0.1, J0=0.1, dJ=0.5)
+#' xi1 <- sample_xi(nsample=n, predictors=predictors, h=par1$h, J=par1$J) 
+#'
+#' xi <- rbind(xi0,xi1)
+#' y <- c(rep(0,n),rep(1,n))
+#' dat <- cbind(data.frame(y=y),xi)
+#' dat <- dat[sample(2*n),]
+#' dtrain <- dat[seq(n),]
+#' dtest <- dat[seq(n+1,2*n),]
+#' ytest <- dtest[,'y']
+#' 
+#' model <- bbl(data=dtrain)
+#' model <- train(model)
+#' 
+#' pred <- predict(object=model, newdata=dtest)
+#' yhat <- apply(pred,1,which.max)-1
+#' score <- mean(ytest==yhat)
+#' score
+#' 
+#' auc <- pROC::roc(response=ytest, predictor=pred[,2], direction='<')$auc
+#' auc
+#' @importFrom utils setTxtProgressBar txtProgressBar
 #' @export
-setMethod('predict', 'bbl', function(object, newdata=NULL, logit=TRUE,
-                                     L=NULL, useC=TRUE, verbose=1, naive=FALSE,
-                                     progress.bar=FALSE){
+setMethod('predict', 'bbl', 
+          function(object, newdata=NULL, logit=TRUE, useC=TRUE, verbose=1, 
+                   naive=FALSE, progress.bar=FALSE){
 
   if(verbose<=0) progress.bar <- FALSE
-# browser()
   iy <- which(object@y==colnames(object@data))
   y <- object@data[,iy]   # y is from training data
   xi0 <- object@data[,-iy]
   
   if(is.null(newdata)) 
-    data <- xi0           # self-prediction
+    xi <- xi0           # self-prediction
   else{
+    if(!is(newdata, 'data.frame')) stop('newdata must be a data frame')
     if(object@y %in% colnames(newdata))
       newdata <- newdata[,colnames(newdata)!=object@y]
     if(NCOL(newdata)!= NCOL(xi0)) 
@@ -30,15 +81,13 @@ setMethod('predict', 'bbl', function(object, newdata=NULL, logit=TRUE,
   
   Ly <- length(object@groups)
   m <- NCOL(object@data) - 1
-  if(is.null(L)){
-    for(i in seq_len(m)){
-      if(object@type=='numeric') 
-        L <- c(L, max(object@data[,i])+1)
-      else
-        L <- c(L, length(object@predictors[[i]]))
-    }
-  } else L <- rep(L, m)
-  
+  L <- NULL
+  for(i in seq_len(m)){
+    if(object@type=='numeric') 
+      L <- c(L, max(object@data[,i])+1)
+    else
+      L <- c(L, length(object@predictors[[i]]))
+  }
   h <- object@h
   J <- object@J
   nsample <- NROW(xi)
@@ -111,12 +160,30 @@ ham <- function(x, h, J, numeric, naive){
   return(e)  
 }
 
+#' @describeIn bbl
+#' Subsetting of \code{bbl} object along rows (sample index) and 
+#'   columns (predictor index)
+#' @param x Object of class \code{bbl} to be subsetted
+#' @param i Row index to keep
+#' @param j column index to keep
+#' @param remove.const Remove predictor levels not found in data.
 #' @export
-setMethod('[', 'bbl', function(x,i,j){
+setMethod('[', 'bbl', function(x,i,j, remove.const=TRUE){
   
+  type <- x@type
+  data <- x@data
   if(!missing(i)){
     i <- as.vector(i)
-    x@data <- x@data[i,]
+    data <- data[i,]
   }
+  if(!missing(j)){
+    j <- as.vector(j)
+    data <- data[,j]
+  }
+  if(remove.const)
+    x <- bbl(data=data, type=type, groups=x@groups, y=x@y)
+  else
+    x <- bbl(data=data, type=type, groups=x@groups, y=x@y, 
+             predictors=x@predictors) 
   return(x)
 })

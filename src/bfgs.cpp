@@ -6,6 +6,7 @@
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_multimin.h>
+#include <Rcpp.h>
 #include "bfgs.h"
 
 using namespace std;
@@ -271,9 +272,9 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
       iter++;
       status=gsl_multimin_fdfminimizer_iterate(s);
       if(iter%nprint==0 & verbose>1)
-        cout << "  iteration # " << iter << ": " << s->f << endl;
+        Rcpp::Rcout << "  iteration # " << iter << ": " << s->f << endl;
       if(status){
-        cerr << " GSL status code " << status << endl;
+        Rcpp::Rcerr << " GSL status code " << status << endl;
         failed=true;
         break;
 //      exit(1);
@@ -281,10 +282,10 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
       status=gsl_multimin_test_gradient(s->gradient,Tol);
   }while(status==GSL_CONTINUE && iter< Imax); 
   if(iter==Imax)
-    cerr << "BFGS2 iteration failed to converge after " 
+    Rcpp::Rcerr << "BFGS2 iteration failed to converge after " 
          << Imax << " iterations\n";
 //  if(verbose > 0 && i0%max(nsnp/10,1)==0) 
-    if(verbose > 0) cout << "  Predictor " << i0+1 << ": " << iter
+    if(verbose > 0) Rcpp::Rcout << "  Predictor " << i0+1 << ": " << iter
          << " iterations, likelihood = " << s->f << endl;
 
   h.resize(Lp[i0]);

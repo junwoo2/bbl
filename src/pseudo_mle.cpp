@@ -48,7 +48,7 @@ List pseudo_mle(NumericMatrix xi, LogicalVector Numeric,
       lkl += lpr_psl(i0, sv, L, lambda, h[i0], J[i0], nprint, Imax, tol,
                    verbose, z, numeric, naive, failed);
       if(failed)
-        std::cout << " Warning: failed to converge in pseudo\n";
+        Rcpp::Rcerr << " Warning: failed to converge in pseudo\n";
     }
     else{
       h[i0].push_back(0);

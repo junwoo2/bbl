@@ -29,17 +29,35 @@ enum <- function(si, L, i, h, J, e=NULL, numeric=FALSE){
   return(e)
 }
 
-#' Generate random samples of observed/hidden states
+#' Generate Random Samples from BB model
+#' 
+#' Random samples are drawn from Boltzmann distribution
+#' 
+#' All possible factor states are enumerated exhaustively using
+#' input argument \code{predictors}. If the number of predictors \eqn{m}
+#' or the number of factor levels \eqn{L_i} for each predictor \eqn{i}
+#' are even moderately large (\eqn{m\ge 10} or \eqn{L_i\ge 5}), 
+#' this function will likely hang because the number of all possible 
+#' states grows exponentially.
+#' 
 #' @param nsample Sample size
-#' @param L Number of hidden states per site 
-#' @param n Total number of sites
-#' @param nrepl Number of replicates of chains to stitch
-#' @param h field parameter
-#' @param J Coupling parameters. List of length equal to maximum distance. 
-#'          d'th element is a square matrix of dimension d.
-#' @param numeric Return numeric code of factors minus 1 (0,...,L-1)
+#' @param numeric Numeric model
+#' @param predictors List of predictor factor levels.
+#' @param h Bias parameter; see \code{\link{bbl}}.
+#' @param J Interaction parameters; see \code{\link{bbl}}.
+#' @param code_out Ouput in integer codes; \eqn{x_i = 0, \cdots, L_i-1}.
+#'        If \code{FALSE}, output in factors.
+#' @return Data frame of samples in rows and predictors in columns.
+#' @examples
+#' set.seed(512)
+#' m <- 5
+#' n <- 1000
+#' predictors <- list()
+#' for(i in 1:m) predictors[[i]] <- c('a','c','g','t')
+#' par <- randompar(predictors)
+#' xi <- sample_xi(nsample=n, predictors=predictors, h=par$h, J=par$J)
 #' @export
-sample_xi <- function(nsample=1, numeric=FALSE, L=NULL, predictors=NULL, 
+sample_xi <- function(nsample=1, numeric=FALSE, predictors=NULL, 
                       h, J, code_out=FALSE){
 
   if(numeric){ 
@@ -70,8 +88,33 @@ sample_xi <- function(nsample=1, numeric=FALSE, L=NULL, predictors=NULL,
   return(fsi)
 }
 
+#' Generate random bias and interaction parameters
+#' 
+#' Random values of bias and interaction parameters are generated
+#' using either uniform or normal distributions.
+#' 
+#' Input argument \code{predictors} is used to set up proper list 
+#' structures of parameters. \code{type = 'factors'} is assumed for 
+#' class \code{bbl}. For \code{type = 'numeric'}, use \code{predictors}
+#' as lists of binary vectors.
+#' 
+#' @param predictors List of predictor factor levels. See \code{\link{bbl}}.
+#' @param distr \code{c('unif','norm')} for uniform or normal distributions.
+#' @param h0 Mean of bias parameters
+#' @param dh \code{sd} of bias if \code{distr = 'unif'}. If \code{distr = 'norm'},
+#'        \eqn{h \in [h_0-dh, h_0+dh]}.
+#' @param J0 Mean of interaction parameters.
+#' @param dJ \code{sd} of interactions if \code{distr = 'unif'}. 
+#'        If \code{distr = 'norm'}, \eqn{J \in [J_0-dJ, J_0+dJ]}.
+#' @return List of parameters, \code{h} and \code{J}.
+#' @examples
+#' set.seed(311)
+#' predictors <- list()
+#' for(i in 1:5) predictors[[i]] <- c('a','c')
+#' par <- randompar(predictors=predictors)
+#' par
 #' @export
-randompar <- function(predictors, h0=0, dh=1, J0=0, dJ=1, distr='unif'){
+randompar <- function(predictors, distr='unif', h0=0, dh=1, J0=0, dJ=1){
   
   m <- length(predictors)
   L <- NULL
@@ -83,15 +126,16 @@ randompar <- function(predictors, h0=0, dh=1, J0=0, dJ=1, distr='unif'){
   
   for(i in seq_len(m)){
     if(distr=='unif')
-      h[[i]] <- runif(n=L[i]-1,min=h0-dh,max=h0+dh)
+      h[[i]] <- stats::runif(n=L[i]-1,min=h0-dh,max=h0+dh)
     else
-      h[[i]] <- rnorm(n=L[i]-1,mean=h0, sd=dh)
+      h[[i]] <- stats::rnorm(n=L[i]-1,mean=h0, sd=dh)
     names(h[[i]]) <- predictors[[i]][-1]
     for(j in seq(i,m)){
       if(i==j) x <- 0
       else{ 
-        if(distr=='unif') x <- runif(n=(L[i]-1)*(L[j]-1), min=J0-dJ, max=J0+dJ)
-        else x <- rnorm(n=(L[i]-1)*(L[j]-1), mean=J0, sd=dJ)
+        if(distr=='unif') 
+          x <- stats::runif(n=(L[i]-1)*(L[j]-1), min=J0-dJ, max=J0+dJ)
+        else x <- stats::rnorm(n=(L[i]-1)*(L[j]-1), mean=J0, sd=dJ)
       }
       x <- matrix(x, nrow=L[i]-1, ncol=L[j]-1)
       rownames(x) <- predictors[[i]][-1]
