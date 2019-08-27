@@ -22,21 +22,6 @@
 #' model <- train(model, method='pseudo')
 #' model@h
 #' model@J[[1]]
-#' 
-#' #Numeric model
-#' set.seed(352)
-#' binary <- list()
-#' for(i in 1:5) binary[[i]] <- c(0,1)
-#' L <- c(2,2,3,3,4)
-#' par0 <- randompar(binary)
-#' xi0 <- sample_xi(nsample=n, type='numeric', L=L, h=par0$h, J=par0$J)
-#' par1 <- randompar(binary, h0=0.01, J0=0.01)
-#' xi1 <- sample_xi(nsample=n, type='numeric', L=L, h=par1$h, J=par1$J)
-#' xi <- rbind(xi0, xi1)
-#' dat <- cbind(xi, data.frame(y=c(rep('control',100),rep('case',100))))
-#' nmodel <- bbl(dat, type='numeric')
-#' nmodel <- train(nmodel, method='pseudo')
-#' head(cv)
 #' @export
 train <- function(object, method='pseudo', naive=FALSE, verbose=1, ...){
 
@@ -62,18 +47,11 @@ train <- function(object, method='pseudo', naive=FALSE, verbose=1, ...){
     xid <- xi[id,]
     if(verbose>0) cat('  Inference for class "',object@y,'" = ',
                       groups[iy],':\n',sep='')
-    if(object@type=='numeric'){ 
-      if(!is.numeric(xid[1,1])) 
-        stop('Numeric model requires numeric data')
-      xidi <- as.matrix(xid)
-    } else{
-      xidi <- matrix(0, nrow=NROW(xid), ncol=NCOL(xid))
-      for(i in seq_len(NCOL(xidi)))
-        xidi[,i] <- match(xid[,i],predictors[[i]])-1   
+    xidi <- matrix(0, nrow=NROW(xid), ncol=NCOL(xid))
+    for(i in seq_len(NCOL(xidi)))
+      xidi[,i] <- match(xid[,i],predictors[[i]])-1   
                                       # xidi = 0, ..., L-1
-    }
-    mle <- mlestimate(xi=xidi, type=object@type, 
-                      method=method, naive=naive, verbose=verbose-1, ...)
+    mle <- mlestimate(xi=xidi, method=method, naive=naive, verbose=verbose-1, ...)
     if(verbose>0 & method=='pseudo') 
       cat('  Maximum pseudo-likelihood = ',mle$mle,'\n\n',sep='')
     

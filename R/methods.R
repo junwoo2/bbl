@@ -82,27 +82,18 @@ setMethod('predict', 'bbl',
   Ly <- length(object@groups)
   m <- NCOL(object@data) - 1
   L <- NULL
-  for(i in seq_len(m)){
-    if(object@type=='numeric') 
-      L <- c(L, max(xi0[,i])+1)
-    else
+  for(i in seq_len(m))
       L <- c(L, length(object@predictors[[i]]))
-  }
   h <- object@h
   J <- object@J
   nsample <- NROW(xi)
   lz <- py <- rep(0, Ly)
   
-  if(object@type=='numeric'){
-    if(!is.numeric(xi[1,1])) stop('Numeric model requires numeric data')
-    xid <- as.matrix(xi)
-  }else{
-    xid <- matrix(0, nrow=nsample, ncol=m)
-    for(i in seq_len(m)){
-      if(sum(!levels(factor(xi[,i])) %in% object@predictors[[i]])>0)
-        stop('Levels in test data not in trained model')
-      xid[,i] <- match(xi[,i],object@predictors[[i]]) - 1
-    }
+  xid <- matrix(0, nrow=nsample, ncol=m)
+  for(i in seq_len(m)){
+    if(sum(!levels(factor(xi[,i])) %in% object@predictors[[i]])>0)
+      stop('Levels in test data not in trained model')
+    xid[,i] <- match(xi[,i],object@predictors[[i]]) - 1
   }
   
   for(iy in seq_len(Ly)){
@@ -121,11 +112,9 @@ setMethod('predict', 'bbl',
     if(!useC){
       E <- rep(0, Ly)
       for(iy in seq_len(Ly))
-        E[iy] <- ham(x, h[[iy]], J[[iy]], numeric=object@type=='numeric',
-                     naive=naive) - lz[iy] + log(py[iy])
+        E[iy] <- ham(x, h[[iy]], J[[iy]], naive=naive) - lz[iy] + log(py[iy])
     }else
-      E <- predict_class(x, c(Ly), h, J, c(object@type=='numeric'), lz, py,
-                         c(naive))
+      E <- predict_class(x, c(Ly), h, J, lz, py, c(naive))
     for(iy in seq_len(Ly))
       ay[k,iy] <- -log(sum(exp(E[-iy]-E[iy])))
     if(progress.bar) setTxtProgressBar(pb, k/nsample)
@@ -138,23 +127,20 @@ setMethod('predict', 'bbl',
   return(ay)
 })
 
-ham <- function(x, h, J, numeric, naive){
+ham <- function(x, h, J, naive){
 
   m <- length(h)
   
   e <- 0
   for(i in seq_len(m)){
     if(x[i]==0) next()
-    if(numeric) e <- e + h[[i]][1]*x[i]
-    else if(length(h[[i]])<x[i]) next()
-    else e <- e + h[[i]][x[i]]
+    if(length(h[[i]])<x[i]) next()
+    e <- e + h[[i]][x[i]]
     if(naive) next()
     for(j in seq_len(m)){
       if(j==i | x[j]==0) next()
-      if(numeric) e <- e + J[[i]][[j]]*x[i]*x[j]/2
-      else if(NROW(J[[i]][[j]])<x[i] | 
-              NCOL(J[[i]][[j]])<x[j]) next()
-      else e <- e + J[[i]][[j]][x[i],x[j]]/2
+      if(NROW(J[[i]][[j]])<x[i] | NCOL(J[[i]][[j]])<x[j]) next()
+      e <- e + J[[i]][[j]][x[i],x[j]]/2
     }
   }
   return(e)  
@@ -170,7 +156,6 @@ ham <- function(x, h, J, numeric, naive){
 #' @export
 setMethod('[', 'bbl', function(x,i,j, remove.const=TRUE){
   
-  type <- x@type
   data <- x@data
   if(!missing(i)){
     i <- as.vector(i)
@@ -181,11 +166,8 @@ setMethod('[', 'bbl', function(x,i,j, remove.const=TRUE){
     data <- data[,j]
   }
   if(remove.const)
-    x <- bbl(data=data, type=type, groups=x@groups, y=x@y)
-  else if(type=='factors')
-    x <- bbl(data=data, type=type, groups=x@groups, y=x@y, 
-             predictors=x@predictors)
+    x <- bbl(data=data, groups=x@groups, y=x@y)
   else
-    x <- bbl(data=data, type=type, groups=x@groups, y=x@y)
+    x <- bbl(data=data, groups=x@groups, y=x@y, predictors=x@predictors)
   return(x)
 })

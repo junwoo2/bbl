@@ -1,8 +1,6 @@
 #' Class \code{bbl} for Boltzmann Bayes Learner
-#' @slot type Type of model; \code{type = c('factors','numeric')}.
 #' @slot predictors List of vectors of characters, each corresponding
-#'   to predictor factor levels if \code{type = 'factors'}. For
-#'   \code{type = 'numeric'}, not used.
+#'   to predictor factor levels.
 #' @slot groups Vector of characters for response factor levels.
 #' @slot data Data frame for training data. Expected to contain both
 #' predictors and response.
@@ -28,8 +26,7 @@
 #' @useDynLib bbl
 #' @importFrom Rcpp evalCpp
 bbl <- setClass('bbl',
-               slots=c(type='character',   # factor or numeric
-                       predictors='list',  # predictor factor levels
+               slots=c(predictors='list',  # predictor factor levels
                        groups='character', # response factor levels
                        data='data.frame',
                        y='character',      # target variable
@@ -46,10 +43,6 @@ bbl <- setClass('bbl',
 #' @param data Data frame of training data. Expected to contain both 
 #'        predictor and response variables in columns and instances 
 #'        in rows.
-#' @param type \code{c('factors','numeric')}; predictors being
-#'        either factors or numeric. The former has multiple
-#'        bias and interaction parameters for each predictor or
-#'        predictor pair. The latter has only one for each.
 #' @param predictors List of predictor factor levels. If not provided, 
 #'        will be inferred from \code{data} columns with names not equal 
 #'        to \code{y}.
@@ -67,10 +60,6 @@ bbl <- setClass('bbl',
 #'        providing \code{predictors}, this default behavior can be overriden. 
 #'        Predictors in \code{data} with a single factor level will be removed.
 #'        Same applies to \code{groups} for response levels. 
-#'        If \code{type = 'numeric'}, predictor ranges in \code{data} will
-#'        be examined for each column and shifted such that the range is
-#'        \eqn{[0,L_i-1]}, where \eqn{L_i > 1} is an integer. Columns with
-#'        \eqn{L_i=1} will be removed (no variation present).
 #' @export
 #' @examples
 #' ## Factors model
@@ -78,20 +67,9 @@ bbl <- setClass('bbl',
 #' summary(titanic)
 #' model <- bbl(data=titanic, y='Survived')
 #' model
-#' 
-#' ## Numeric model
-#' set.seed(133)
-#' data <- data.frame(y=sample(c('Case','Control'),size=5,replace=TRUE),
-#'                    x1=rbinom(n=5, size=2, prob=0.5),
-#'                    x2=rbinom(n=5, size=3, prob=0.5))
-#' data    # Note "x1" has range [1,2]
-#' nmodel <- bbl(data, type='numeric')
-#' nmodel
-#' nmodel@data # "x1" range and data were shifted down to [0,1]
 #' @importFrom methods initialize new callNextMethod is
 setMethod('initialize', signature=('bbl'),
-          definition=function(.Object, data, type='factors', predictors=NULL, 
-                              groups=NULL, y='y', ...){
+          definition=function(.Object, data, predictors=NULL, groups=NULL, y='y', ...){
             if(!is.data.frame(data))
               data <- as.data.frame(data)
             if(!y %in% colnames(data)) stop(paste0(y,' not in data'))
@@ -102,28 +80,16 @@ setMethod('initialize', signature=('bbl'),
             xi <- data[,-iy]
             nvar <- ncol(xi)
             if(is.null(predictors)){
-              if(type=='numeric')
-                predictors <- list('numeric')
-              else predictors <- list()
+              predictors <- list()
               cnt <- NULL
               for(i in seq(nvar)){
-                if(type=='factors'){
-                  fac <- levels(factor(xi[,i]))
-                  fac <- fac[order(fac)]
-                  if(length(fac)==1) next()
-                } else{
-                  if(!is.numeric(xi[,i])) 
-                    stop('Input data not numeric')
-                  fac <- range(xi[,i])
-                  if(fac[1]==fac[2]) next()
-                  xi[,i] <- xi[,i] - min(xi[,i])
-                }
+                fac <- levels(factor(xi[,i]))
+                fac <- fac[order(fac)]
+                if(length(fac)==1) next()
                 cnt <- c(cnt, i)
-                if(type=='factors') predictors[[length(cnt)]] <- fac
+                predictors[[length(cnt)]] <- fac
               }
             } else{
-              if(type=='numeric')
-                stop('Numeric type is not compatible with manual predictor input')
               cnt <- NULL
               for(i in seq(nvar)){
                 fac <- levels(factor(xi[,i]))
@@ -138,7 +104,7 @@ setMethod('initialize', signature=('bbl'),
             if(length(cnt)<nvar)
               cat(' ',nvar-length(cnt),
                       ' variables with one level removed\n', sep='')
-            .Object <- callNextMethod(.Object, type=type, predictors=predictors,
+            .Object <- callNextMethod(.Object, predictors=predictors,
                                       groups=groups, data=data, y=y, ...)
             return(.Object)
 })
@@ -162,19 +128,11 @@ setMethod('show', signature='bbl',
             iy <- which(colnames(object@data)==object@y)
             xi <- object@data[,-iy]
             nvar <- ncol(xi)
-            if(object@type=='factors'){
-              predictors <- object@predictors
-              cat(' ',nvar, ' predictor states:\n',sep='')
-              for(i in seq_len(min(3,length(predictors))))
-                cat('  ',colnames(xi)[i],'=',predictors[[i]],'\n',sep=' ')
-              if(nvar > 3) cat('   ...\n',sep='')
-            }
-            else{ 
-              cat(' ',nvar,' numeric predictors:\n',sep='')
-              for(i in seq_len(min(3, nvar)))
-                cat('   [',min(xi[,i]),',',max(xi[,i]),']\n',sep='')
-              if(nvar > 3) cat('   ...\n',sep='')
-            }
+            predictors <- object@predictors
+            cat(' ',nvar, ' predictor states:\n',sep='')
+            for(i in seq_len(min(3,length(predictors))))
+              cat('  ',colnames(xi)[i],'=',predictors[[i]],'\n',sep=' ')
+            if(nvar > 3) cat('   ...\n',sep='')
             cat(' Responses:\n  ', object@y,'=',object@groups, '\n',sep=' ')
             cat(' Sample size: ',NROW(object@data),'\n',sep='')
             return(invisible(object))

@@ -116,8 +116,7 @@ with ${\bf x}=(x_1,\cdots,x_m)$.
 In this paper, we focus on supervised learners taking into account the 
 high-dimensional nature of $P({\bf x}|y)$ beyond the naive Bayes-level description given by Eq.~(\ref{eq:nbayes}). Namely, 
 a suitable parametrization is provided by the Boltzmann machine 
-\citep{ackley_etal}, which for the simple `numeric' predictor model 
-($x_i=0,1,\cdots, L_i-1$ with its effects on response ordered accordingly),
+\citep{ackley_etal}, which for the simple binary predictor $x_i=0,1$,
 \begin{equation}
 P({\bf x}|y)=\frac{1}{Z_y}\exp\left(\sum_i h_i^{(y)}x_i + \sum_{i<j} J_{ij}^{(y)}x_ix_j\right),
 \label{eq:boltzmann}
@@ -180,10 +179,9 @@ L_y = \sum_{k \in y} \left[\ln P({\bf x}^k|y)+\ln P(y)\right]
 \end{equation}
 where $p_y\equiv P(y)$ is the marginal distribution of $y$ and $n_y$ is the size of group $y$.
 
-We consider two cases for parametrization of the first term in Eq.~(\ref{eq:Ly}). First, one may
-assume that predictor variables take discrete factor levels, each with distinct effect on responses,
+In parametrizing the first term in Eq.~(\ref{eq:Ly}), we assume that predictor variables take discrete factor levels, each with distinct effect on responses,
 e.g., $x_i=\text{\code{a},\:\code{t},\:\code{g},\:\code{c}}$ for DNA sequence data.
-In this case, we parametrize the group-specific predictor distribution by
+The group-specific predictor distribution can then be written as
 \begin{equation}
 P({\bf x}|y)=\frac{1}{Z_y} \exp\left[ \sum_i h_i^{(y)}(x_i) + \sum_{i<j} J_{ij}^{(y)}(x_i,x_j)\right].
 \label{eq:pxy}
@@ -192,20 +190,14 @@ The number of parameters (d.f.) per group $y$ in $\Theta_y=\{h_i^{(y)}(x), J_{ij
 \begin{equation}
 {\rm d.f.}=\sum_i (L_i-1) + \sum_{i<j} (L_i-1)(L_j-1),
 \end{equation}
-where $L_i$ is the total number of levels in factor $x_i$, which contributes one less parameters to d.f.
-because one of the factors can be taken as reference with the rest measured against it. Internally, 
+where $L_i$ is the total number of levels in factor $x_i$, which contributes one less parameters to d.f. because one of the factors can be taken as reference with the rest measured against it. Internally, 
 \pkg{bbl} orders factors, assigns codes $a_i=0,\cdots, L_i-1$, and set $h_i^{(y)}(a_i)=
 J_{ij}^{(y)}(a_i,a_j)=0$ whenever $a_i=0$ or $a_j=0$.
-We refer to $h_i^{(y)}(x)$ and $J_{ij}^{(y)}(x,x^\prime)$ as bias and interaction parameters,
-respectively.
+We refer to $h_i^{(y)}(x)$ and $J_{ij}^{(y)}(x,x^\prime)$ as bias and interaction 
+parameters, respectively.
 
-A simpler model can be used when factors are ordered and numeric: $x_i=0,1,\cdots, L_i-1$. The `numeric' model
-is then defined by Eq.~(\ref{eq:boltzmann}). In this case, 
-$\Theta_y=\{h_i^{(y)},J_{ij}^{(y)}\}$
-consists of ${\rm d.f.}= m + m(m-1)/2=m(m+1)/2$ parameters 
-[one $h$ and $J$ for each $i$ and $(i,j)$ pairs], where $m$ is the total number of predictors.
-A further simplification of numeric model is to limit predictor levels to be binary ($x_i=0,1$).
-The package \pkg{BoltzMM} \citep{BoltzMM} adopts this model with the spin variables $s_i=2x_i-1=\pm 1$.
+In the special case where predictor levels are binary ($x_i=0,1$), one may use
+the spin variables $s_i=2x_i-1=\pm 1$, as in the package \pkg{BoltzMM} \citep{BoltzMM}.
 Its distribution \citep{jones_etal}
 \begin{equation}
 P({\bf s})\propto \exp\left( \frac{1}{2}{\bf s}^\mathsf{T}\, {\bf M}\, {\bf s} + {\bf b}^\mathsf{T} {\bf s}\right)
@@ -253,19 +245,17 @@ with first derivatives
 \begin{eqnarray}
 \frac{\partial L_{iy}/n_y}{\partial h_i^{(y)}(x)} &=& {\hat f}_i^{(y)}(x) 
 - \frac{1}{n_y}\sum_{k\in y} P_i(x|y, x_{l\backslash i})
-%\frac{e^{{\bar h}_i^{(y)}(x|x_{l\backslash i}^k)}}{Z_{iy}(x_{l\backslash i}^k)}
 -\lambda h_i^{(y)}(x),
 \\
 \frac{\partial L_{iy}/n_y}{\partial J_{ij}^{(y)}(x,x^\prime)} &=& {\hat f}_{ij}^{(y)}(x,x^\prime) 
 - \frac{1}{n_y}\sum_{k\in y} \mathbbm{1}(x_j^k=x^\prime)
-% \frac{e^{{\bar h}_i^{(y)}(x|x_{l\backslash i}^k)}}{Z_{iy}(x_{l\backslash i}^k)}
 P_i(x|y, x_{l\backslash i})
 -\lambda J_{ij}^{(y)}(x,x^\prime),
 \end{eqnarray}
 \label{eq:partial}
 \end{subequations}
-where ${\hat f}_i^{(y)}(x)$ and ${\hat h}_{ij}^{(y)}(x,x^\prime)$ are the first and second moments
-of predictor values and $\mathbbm{1}(x)$ is the indicator function.
+where ${\hat f}_i^{(y)}(x)$ and ${\hat h}_{ij}^{(y)}(x,x^\prime)$ are the first and 
+second moments of predictor values and $\mathbbm{1}(x)$ is the indicator function.
 In \pkg{bbl}, Eqs.~(\ref{eq:partial}) are solved in \proglang{C++} functions using the quasi-Newton optimization function 
 \code{gsl_multimin_fdfminimizer_vector_bfgs2} in GNU Scientific Library 
 (\url{https://www.gnu.org/software/gsl}).
@@ -330,24 +320,6 @@ The effective bias is related to frequency via Eq.~(\ref{eq:hbari}) because
 \label{eq:hat}
 \end{equation}
 where the fact that ${\bar h}_i^{(y)}(0)=0$  was used in the second equality.
-For numeric predictors, Eq.~(\ref{eq:hat}) is replaced by
-\begin{equation}
-{\hat f}_i^{(y)}\equiv \frac{1}{n_y} \sum_{k \in y} x_i^k = 
-\frac{\sum_{x=0}^{L_i-1} x\,e^{{\bar h}_i^{(y)} x}}{\sum_{x=0}^{L_i-1} e^{{\bar h}_i^{(y)}x}},
-\end{equation}
-which needs to be solved numerically first to find ${\bar h}_i^{(y)}$ so that it can be used in
-Eq.~(\ref{eq:mf}).
-
-%\subsection{Naive Bayes}
-%The naive Bayes model is contained in BB model as a special case where $J_{ij}^{(y)}=0$.
-%There are two options for naive Bayes inference in \pkg{bbl}, either without regularization or
-%with regularization. With regularization ($\lambda>0$ in Eqs.~(\ref{eq:Liy})-(\ref{eq:partial}), 
-%one has the ability to select important predictors and prevent overfitting when the number of
-%predictors are large. In \pkg{bbl}, this option is available via the pseudo-likelihood inference
-%by setting interaction parameters to zero.
-%When $\lambda=0$, which is suitable for models with moderate to small number of predictors, 
-%the advantage is that inference possesses analytical solution (\ref{eq:hbari}). 
-%This option is available via mean field inference in \pkg{bbl}.
 
 \subsection{Classification}
 For prediction, we combine predictor distributions for all response groups via Bayes formula:
@@ -829,7 +801,7 @@ discrete multi-class response variable.
 The currently available \proglang{R} package \pkg{BoltzMM} is limited
 to fitting data into a single fully visible Boltzmann distribution
 without reference to response variables, and assumes binary 
-numeric predictors. The package \pkg{bbl} extends the basic statistical distribution to accommodate heterogeneous, factor-valued predictors via 
+predictors. The package \pkg{bbl} extends the basic statistical distribution to accommodate heterogeneous, factor-valued predictors via 
 Eq.~(\ref{eq:pxy}), embedding it in a Bayesian classifier for supervised learning and prediction.
 
 Compared to more widely applied restricted Boltzmann machine algorithms

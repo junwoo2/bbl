@@ -4,8 +4,7 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-List pseudo_mle(NumericMatrix xi, LogicalVector Numeric,
-                NumericVector Lambda, IntegerVector Nprint, 
+List pseudo_mle(NumericMatrix xi, NumericVector Lambda, IntegerVector Nprint, 
                 IntegerVector Itmax, NumericVector Tol,
                 LogicalVector Naive, IntegerVector Verbose){
   
@@ -36,7 +35,6 @@ List pseudo_mle(NumericMatrix xi, LogicalVector Numeric,
   unsigned int Imax = Itmax[0];
   double tol = Tol[0];
   int verbose = Verbose[0];
-  bool numeric = Numeric[0];
   bool naive = Naive[0];
   
   double lkl = 0;
@@ -46,7 +44,7 @@ List pseudo_mle(NumericMatrix xi, LogicalVector Numeric,
     bool failed=false;
     if(!bad[i0]){
       lkl += lpr_psl(i0, sv, L, lambda, h[i0], J[i0], nprint, Imax, tol,
-                   verbose, z, numeric, naive, failed);
+                   verbose, z, naive, failed);
       if(failed)
         Rcpp::Rcerr << " Warning: failed to converge in pseudo\n";
     }
@@ -67,8 +65,7 @@ List pseudo_mle(NumericMatrix xi, LogicalVector Numeric,
 
 // [[Rcpp::export]]
 NumericVector predict_class(IntegerVector xid, IntegerVector Ly, List h, List J,
-                LogicalVector numericmodel, NumericVector lz, NumericVector py,
-                LogicalVector Naive){
+                NumericVector lz, NumericVector py, LogicalVector Naive){
 
   int m = xid.length();
   int ly = Ly[0];
@@ -81,20 +78,15 @@ NumericVector predict_class(IntegerVector xid, IntegerVector Ly, List h, List J,
     for(int i=0; i<m; i++){
       if(xid(i)==0) continue;
       NumericVector hi = hy[i];
-      if(numericmodel[0]) 
-        e += hi(0)*xid(i);
-      else if(hi.length() < xid(i)) continue;
-      else
-        e += hi(xid(i)-1);
+      if(hi.length() < xid(i)) continue;
+      e += hi(xid(i)-1);
       List Ji = Jy[i];
       if(Naive[0]) continue;
       for(int j=0; j<m; j++){
         if(j==i || xid(j)==0) continue;
         NumericMatrix Jj = Ji[j];
-        if(numericmodel[0]) e += Jj(0,0)*xid(i)*xid(j)/2.0;
-        else if(Jj.nrow()<xid(i) ||
-                Jj.ncol()<xid(j)) continue;
-        else e += Jj(xid(i)-1,xid(j)-1)/2.0;
+        if(Jj.nrow()<xid(i) ||  Jj.ncol()<xid(j)) continue;
+        e += Jj(xid(i)-1,xid(j)-1)/2.0;
       }
     }
     E[iy] = e - lz[iy] + log(py[iy]);

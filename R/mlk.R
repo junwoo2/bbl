@@ -11,17 +11,9 @@
 #'        object, this matrix is always numeric with elements ranging from 
 #'        zero to positive integral upper bound. \code{\link{train}} does
 #'        the transformation from factors to this numeric matrix for
-#'        \code{bbl} objects of \code{type = 'factors'}. 
+#'        \code{bbl} objects. 
 #' @param method \code{c('pseudo','mf')} for pseudo-likelihood maximization or
 #'        mean field inference.
-#' @param type \code{'factors', 'numeric'}. Type of \code{bbl} model. 
-#'        If \code{'numeric'}, there is a single bias parameter
-#'        for each predictor and a single interaction parameter for each
-#'        distinct predictor pair. Elements of \code{xi} multipled by 
-#'        these parameters determine the probability. If \code{'factors'} 
-#'        (default), the numbers of parameters are one less than
-#'        the number of factor levels and their products for bias and interaction,
-#'        respectively. 
 #' @param lambda Vector of L2 regularization parameters for 
 #'        \code{method = 'pseudo'}. Inference will be repeated for each values 
 #'        of \code{lambda}.
@@ -62,16 +54,13 @@
 #' points(x=unlist(par$J), y=unlist(mf$J), col='green')
 #' @export
 
-mlestimate <- function(xi, method='pseudo', type='factors', lambda=0, 
+mlestimate <- function(xi, method='pseudo', lambda=0, 
                        symmetrize=TRUE, eps=1, nprint=100, itmax=10000,
                        tolerance=1e-5, verbose=1, prior.count=TRUE,
                        naive=FALSE){
   
   m <- NCOL(xi)
   L <- apply(xi, 2, max)
-  numeric <- type=='numeric'
-  if(numeric) Lp <- rep(1, NCOL(xi))
-  else Lp <- L
   
   if(naive){
     method <- 'mf'
@@ -85,19 +74,18 @@ mlestimate <- function(xi, method='pseudo', type='factors', lambda=0,
     Tol <- c(tolerance)
     Verbose <- c(verbose)
     Naive <- c(naive)
-    Numeric <- c(numeric)
     if(!is.numeric(xi[1,1])
        | min(xi)<0) stop('Input data to mlestimate must be numeric and non-negative')
     xi <- as.matrix(xi)
-    theta <- pseudo_mle(xi, Numeric, Lambda, Nprint, Itmax, Tol, Naive, Verbose)
+    theta <- pseudo_mle(xi, Lambda, Nprint, Itmax, Tol, Naive, Verbose)
     
     h <- theta$h
     J <- vector('list',m)
     for(i in seq_len(m)) J[[i]] <- vector('list',m)
     for(i in seq(1,m)){ 
       for(j in seq(i,m)){
-        x <- matrix(theta$J[[i]][[j]], nrow=Lp[i], ncol=Lp[j], byrow=TRUE)
-        xt <- matrix(theta$J[[j]][[i]], nrow=Lp[j], ncol=Lp[i], byrow=TRUE)
+        x <- matrix(theta$J[[i]][[j]], nrow=L[i], ncol=L[j], byrow=TRUE)
+        xt <- matrix(theta$J[[j]][[i]], nrow=L[j], ncol=L[i], byrow=TRUE)
         if(i<j & symmetrize){ 
           x <- (x + t(xt))/2
           xt <- t(x)
@@ -109,15 +97,14 @@ mlestimate <- function(xi, method='pseudo', type='factors', lambda=0,
     return(list(h=h, J=J, mle=theta$lkl, lz=theta$lz))
   }
   else if(method=='mf'){
-    theta <- meanfield(xi=xi, L=L, Lp=Lp, eps=eps, numeric=numeric,
-                       prior.count=prior.count)
+    theta <- meanfield(xi=xi, L=L, eps=eps, prior.count=prior.count)
     return(list(h=theta$h, J=theta$J, lz=theta$lz))
   } else stop('unknown method in mlestimate')
 
 }
 
 # Mean field inference
-meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, prior.count=TRUE){
+meanfield <- function(xi, L, eps=1, prior.count=TRUE){
 
   nsite <- ncol(xi)
   nsample <- nrow(xi)
@@ -128,22 +115,20 @@ meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, prior.count=TRUE){
   xir <- xi[,!bad, drop=FALSE]
 
   if(eps>0){
-    csi <- matrix(0, nrow=nsample, ncol=sum(Lp[!bad]))
+    csi <- matrix(0, nrow=nsample, ncol=sum(L[!bad]))
     for(k in seq_len(nsample)){ 
       Ls <- 0
       for(i in seq_len(nvar)){
-        if(xir[k,i]>0){
-          if(numeric) csi[k, Ls+1] <- xir[k,i]
-          else csi[k, Ls+xir[k,i]] <- 1
-        }
-        Ls <- Ls + Lp[id[i]]
+        if(xir[k,i]>0)
+          csi[k, Ls+xir[k,i]] <- 1
+        Ls <- Ls + L[id[i]]
       }
     }
 
     if(prior.count){
       count0 <- NULL
       for(i in seq_len(nvar)){
-        w <- Lp[id[i]]
+        w <- L[id[i]]
         count0 <- c(count0, rep(1/(w+1),w))
       }
       m0 <- (count0 + colSums(csi))/(nsample+1)
@@ -153,8 +138,8 @@ meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, prior.count=TRUE){
     mi <- vector('list',nvar)
     Ls <- 0
     for(i in seq_len(nvar)){
-      mi[[i]] <- m0[seq(Ls+1,Ls+Lp[id[i]])]
-      Ls <- Ls + Lp[id[i]]
+      mi[[i]] <- m0[seq(Ls+1,Ls+L[id[i]])]
+      Ls <- Ls + L[id[i]]
     }
     csi <- csi - matrix(m0, nrow=nsample, ncol=Ls, byrow=TRUE)
     if(prior.count){
@@ -165,15 +150,15 @@ meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, prior.count=TRUE){
       cis <- t(csi) %*% csi / nsample
   
     cijb <- eps*cij + (1-eps)*mean(diag(cij))*diag(1,nrow=NROW(cij))
-    Jij <- solve(a=cijb, b=diag(-1, nrow=sum(Lp[!bad])))
+    Jij <- solve(a=cijb, b=diag(-1, nrow=sum(L[!bad])))
   } else{
     mi <- vector('list',nvar)
     for(i in seq_len(nvar)){
       tmp <- NULL
-      for(l in seq(Lp[id[i]])){
+      for(l in seq(L[id[i]])){
         mx <- sum(xir[,i]==l)
         if(prior.count)
-          mx <- (mx + 1/(Lp[id[i]]+1))/(nsample+1)
+          mx <- (mx + 1/(L[id[i]]+1))/(nsample+1)
         else mx <- mx/nsample
         tmp <- c(tmp,mx)
       }
@@ -186,10 +171,7 @@ meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, prior.count=TRUE){
     if(bad[i]) h[[i]] <- 0
     else{
       mx <- mi[[which(id==i)]]
-      if(numeric)
-        h[[i]] <- invav(mx,L[i])
-      else
-        h[[i]] <- log(mx/(1-sum(mx)))
+      h[[i]] <- log(mx/(1-sum(mx)))
     }
   }
 
@@ -198,19 +180,19 @@ meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, prior.count=TRUE){
     Lsi <- 0
     for(i in seq_len(nsite)){
       if(bad[i]) next()
-      for(l in seq_len(Lp[i])){
+      for(l in seq_len(L[i])){
         Lsj <- 0
         for(j in seq_len(nsite)){
           if(i!=j){
             if(bad[j]) next()
             mx <- mi[[which(id==j)]]
-            for(q in seq_len(Lp[j]))
+            for(q in seq_len(L[j]))
               h[[i]][l] <- h[[i]][l] - Jij[Lsi+l, Lsj+q]*mx[q]
           }
-          Lsj <- Lsj + Lp[j]
+          Lsj <- Lsj + L[j]
         }
       }
-      Lsi <- Lsi + Lp[i]
+      Lsi <- Lsi + L[i]
     }
   }
 
@@ -229,20 +211,20 @@ meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, prior.count=TRUE){
         J[[i]][[j]] <- matrix(0)
         next()
       }
-      w <- matrix(0, nrow=Lp[i], ncol=Lp[j])
+      w <- matrix(0, nrow=L[i], ncol=L[j])
       if(i==j) J[[i]][[i]] <- w
       else{ 
-        for(l in seq_len(Lp[i])) for(q in seq_len(Lp[j]))
+        for(l in seq_len(L[i])) for(q in seq_len(L[j]))
           w[l,q] <- Jij[Lsi+l,Lsj+q]
         J[[i]][[j]] <- w
         J[[j]][[i]] <- t(w)
       }
-      Lsj <- Lsj + Lp[j]
+      Lsj <- Lsj + L[j]
     }
-    Lsi <- Lsi + Lp[i]
+    Lsi <- Lsi + L[i]
   }
   
-  lz <- Zeff(L=L, bad=bad, m=nsite, h=h, J=J, xi=xi, numeric=numeric, mf=TRUE, 
+  lz <- Zeff(L=L, bad=bad, m=nsite, h=h, J=J, xi=xi, mf=TRUE, 
              naive=(eps==0))  # log partition function
   
   return(list(h=h, J=J, lz=lz))
@@ -271,11 +253,9 @@ invav <- function(mx, L){
 }
 
 # Pseudo partition function using data xi
-Zeff <- function(L, bad, m, h, J, xi, numeric, mf=mf, naive){
+Zeff <- function(L, bad, m, h, J, xi, mf=mf, naive){
   
   nsample <- NROW(xi)
-  if(numeric) Lp <- rep(1, m)
-  else Lp <- L
   if(mf){
     fi <- vector('list',m)
     f0 <- rep(1, m)
@@ -298,11 +278,10 @@ Zeff <- function(L, bad, m, h, J, xi, numeric, mf=mf, naive){
       if(bad[i]) next()
       for(j in seq(i+1,m)){
         if(bad[j]) next()
-        for(l0 in seq_len(Lp[i])) for(l1 in seq_len(Lp[j])){
+        for(l0 in seq_len(L[i])) for(l1 in seq_len(L[j])){
           if(NROW(J[[i]][[j]])<l0 |
              NCOL(J[[i]][[j]])<l1) next()
           dz <- J[[i]][[j]][l0,l1]*fi[[i]][l0]*fi[[j]][l1]
-          if(numeric) dz <- dz * l0*l1;
           lz <- lz - dz
         }
       }
@@ -315,18 +294,15 @@ Zeff <- function(L, bad, m, h, J, xi, numeric, mf=mf, naive){
     if(bad[i]) next()
     z <- 1
     for(a in seq(1, L[i])){
-      if(numeric) e <- h[[i]][1]*a
-      else if(length(h[[i]]) < a) next()
-      else e <- h[[i]][a]
+      if(length(h[[i]]) < a) next()
+      e <- h[[i]][a]
       if(naive) next()
       for(j in seq(1,m)){
         if(j==i) next()
         xj <- xi[k,j]
         if(xj==0) next()
-        if(numeric)
-          e <- e + J[[i]][[j]]*a*xj/2
-        else if(NROW(J[[i]][[j]])<a | NCOL(J[[i]][[j]])<xj) next()
-        else e <- e + J[[i]][[j]][a,xj]/2
+        if(NROW(J[[i]][[j]])<a | NCOL(J[[i]][[j]])<xj) next()
+        e <- e + J[[i]][[j]][a,xj]/2
       }
       z <- z + exp(e)
     }

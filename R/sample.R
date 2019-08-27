@@ -1,29 +1,27 @@
-eh <- function(si, h, J, numeric=FALSE){
+eh <- function(si, h, J){
 
   N <- length(si)
   e <- 0
 
   for(i in seq_len(N)){
     if(si[i]==0) next
-    if(numeric) e <- e + h[[i]][1]*si[i]
-    else e <- e + h[[i]][si[i]]
+    e <- e + h[[i]][si[i]]
     if(i < N){
       for(j in seq(i+1,N)){
         if(si[j]==0) next
-        if(numeric) e <- e + J[[i]][[j]][1]*si[i]*si[j]
-        else e <- e + J[[i]][[j]][si[i],si[j]]
+        e <- e + J[[i]][[j]][si[i],si[j]]
       }
     }
   }
   return(exp(e))
 }
 
-enum <- function(si, L, i, h, J, e=NULL, numeric=FALSE){
+enum <- function(si, L, i, h, J, e=NULL){
 
   for(s in seq(0,L[i]-1)){
     si[i] <- s
-    if(i>1) e <- enum(si, L, i-1, h, J, e, numeric=numeric)
-    else e <- rbind(e, cbind(t(si),eh(si, h, J, numeric=numeric)))
+    if(i>1) e <- enum(si, L, i-1, h, J, e)
+    else e <- rbind(e, cbind(t(si),eh(si, h, J)))
   }
   N <- length(si)
   return(e)
@@ -41,10 +39,7 @@ enum <- function(si, L, i, h, J, e=NULL, numeric=FALSE){
 #' states grows exponentially.
 #' 
 #' @param nsample Sample size
-#' @param type \code{'factors','numeric'}. Type of \code{bbl} model.
 #' @param predictors List of predictor factor levels.
-#' @param L Vector of upper bounds for numeric features. Output ranges for
-#'        each coumn will be \eqn{x_i=[0,L_i]}. Required if \code{type = 'numeric'}
 #' @param h Bias parameter; see \code{\link{bbl}}.
 #' @param J Interaction parameters; see \code{\link{bbl}}.
 #' @param code_out Ouput in integer codes; \eqn{a_i = 0, \cdots, L_i-1}.
@@ -59,35 +54,21 @@ enum <- function(si, L, i, h, J, e=NULL, numeric=FALSE){
 #' par <- randompar(predictors)
 #' xi <- sample_xi(nsample=n, predictors=predictors, h=par$h, J=par$J)
 #' head(xi)
-#' 
-#' #numeric model
-#' binary <- list()
-#' for(i in 1:m) binary[[i]] <- c(0,1)
-#' par2 <- randompar(binary)
-#' xi2 <- sample_xi(nsample=n, type='numeric', L=rep(2,m), h=par2$h, J=par2$J)
-#' head(xi2)
 #' @export
 sample_xi <- function(nsample=1, type='factors', predictors=NULL, L=NULL, 
                       h, J, code_out=FALSE){
 
-  numeric <- type=='numeric'
-  if(numeric){ 
-    if(is.null(L)) stop('L must be given for numeric model')
-    nvar <- length(L)
-    code_out <- TRUE
-  } else{
-    L <- NULL
-    for(p in predictors) L <- c(L, length(p))
-    if(length(predictors)!=length(h) | length(predictors)!=length(J))
-    stop("Predictors and h,J sizes don't match")
-    nvar <- length(predictors)
-  }
-
-  e <- enum(si=rep(0,nvar), L=L, i=nvar, h, J, numeric=numeric)
+  L <- NULL
+  for(p in predictors) L <- c(L, length(p))
+  if(length(predictors)!=length(h) | length(predictors)!=length(J))
+  stop("Predictors and h,J sizes don't match")
+  nvar <- length(predictors)
+  
+  e <- enum(si=rep(0,nvar), L=L, i=nvar, h, J)
   sid <- sample(NROW(e), size=nsample, replace=TRUE, prob=e[,nvar+1])
   si <- e[sid,seq_len(nvar)]
   
-  if(!code_out & !numeric){
+  if(!code_out){
     for(i in seq_len(nvar)){
       x <- data.frame(x=factor(predictors[[i]][si[,i]+1], 
                                           levels=predictors[[i]]))
@@ -106,9 +87,7 @@ sample_xi <- function(nsample=1, type='factors', predictors=NULL, L=NULL,
 #' using either uniform or normal distributions.
 #' 
 #' Input argument \code{predictors} is used to set up proper list 
-#' structures of parameters. \code{type = 'factors'} is assumed for 
-#' class \code{bbl}. For \code{type = 'numeric'}, use \code{predictors}
-#' as a list of binary vectors; see \code{\link{simulate_xi}}.
+#' structures of parameters.
 #' 
 #' @param predictors List of predictor factor levels. See \code{\link{bbl}}.
 #' @param distr \code{c('unif','norm')} for uniform or normal distributions.

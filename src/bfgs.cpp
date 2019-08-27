@@ -12,20 +12,19 @@
 using namespace std;
 
 void pan3(vector<double> &peff, int nsnp, int i0, 
-          const vector<short> &L, const vector<short> &Lp,
-          const vector<short> &ci, vector<double> h1, 
+          const vector<short> &L, const vector<short> &ci, vector<double> h1, 
           const vector<vector<double> > &J1, double &lz,
           bool naive){
 
   peff.resize(L[i0]);
   for(int a=0;a<L[i0];a++){
-    double e= (L[i0]==Lp[i0] ? h1[a] : h1[0]*(a+1));
+    double e= h1[a];
     if(!naive){
       for(int j=0;j< nsnp;j++){
         if(j==i0) continue;
         int b=ci[j];
         if(b==0) continue;
-        e+= (L==Lp ? J1[j][L[j]*a+b-1] : J1[j][0]*(a+1)*b);
+        e+= J1[j][L[j]*a+b-1];
       }
     }
     peff[a]=e;
@@ -45,12 +44,12 @@ void pan3(vector<double> &peff, int nsnp, int i0,
 }
 
 double pan2(int nsnp, int i0, const vector<short> &L, 
-            const vector<short> &Lp, const vector<short> &ci, 
+            const vector<short> &ci, 
             const vector<double> &h1, const vector<vector<double> > &J1, 
             double &lz, bool naive){
 
   vector<double> peff(L[i0]);
-  pan3(peff, nsnp, i0, L, Lp, ci, h1, J1, lz, naive);
+  pan3(peff, nsnp, i0, L, ci, h1, J1, lz, naive);
 
   int a0=ci[i0];
   if(a0>0)
@@ -68,23 +67,22 @@ double lnl_psl(const gsl_vector *v,void *params){  // evaluates log likelihood
   Param *par=(Param *)params;
   int i0=par->i0;
   vector<short> L=par->L;
-  vector<short> Lp=par->Lp;
   double lambda=par->lambda;
   int nsnp=(par->ai)[0].size();
 
-  vector<double> h1(Lp[i0]);
+  vector<double> h1(L[i0]);
   vector<vector<double> > J1(nsnp);
   
   if(!par->naive)
-    for(int i=0; i<nsnp; i++) J1[i].resize(Lp[i0]*Lp[i]);
+    for(int i=0; i<nsnp; i++) J1[i].resize(L[i0]*L[i]);
 
   int m=0;
-  for(int l0=0;l0<Lp[i0];l0++){
+  for(int l0=0;l0<L[i0];l0++){
     h1[l0]=gsl_vector_get(v,m++);
     for(int i=0; i<nsnp; i++){ 
       if(i==i0 || par->naive) continue;
-      for(int l1=0;l1<Lp[i];l1++)
-        J1[i][Lp[i]*l0+l1]=gsl_vector_get(v,m++);
+      for(int l1=0;l1<L[i];l1++)
+        J1[i][L[i]*l0+l1]=gsl_vector_get(v,m++);
     }
   }
 
@@ -93,20 +91,20 @@ double lnl_psl(const gsl_vector *v,void *params){  // evaluates log likelihood
   par->lzp = 0;
   for(int n=0;n<nind;n++){
     double lz=0;
-    double p=pan2(nsnp,i0,L,Lp,(par->ai)[n],h1,J1,lz, par->naive);
+    double p=pan2(nsnp,i0,L,(par->ai)[n],h1,J1,lz, par->naive);
     ln += -log(p);
     par->lzp += lz;
   }
   ln /= nind;
   par->lzp /= nind;
 
-  for(int l=0;l<Lp[i0];l++)
+  for(int l=0;l<L[i0];l++)
     ln+= lambda*h1[l]*h1[l]/2;
   if(par->naive) return ln;
   
   for(int i=0; i<nsnp; i++){
     if(i==i0) continue;
-    for(int l=0;l<Lp[i0]*Lp[i];l++)
+    for(int l=0;l<L[i0]*L[i];l++)
       ln+=lambda*J1[i][l]*J1[i][l]/2;
   }
   return ln;
@@ -117,100 +115,76 @@ void dlnl_psl(const gsl_vector *v,void *params,gsl_vector *df){   // first deriv
 
   Param *par=(Param *)params;
   vector<short> L=par->L;
-  vector<short> Lp=par->Lp;
   int nsnp=(par->ai)[0].size();
   double lambda=par->lambda;
   int i0=par->i0;
 
-  vector<double> s1(Lp[i0]);
+  vector<double> s1(L[i0]);
   vector<vector<double> > s2(nsnp);
 
-  vector<double> h1(Lp[i0]);
+  vector<double> h1(L[i0]);
   vector<vector<double> > J1(nsnp);
   
   if(!par->naive)
-    for(int i=0; i<nsnp; i++) J1[i].resize(Lp[i0]*Lp[i]);
+    for(int i=0; i<nsnp; i++) J1[i].resize(L[i0]*L[i]);
 
   int m=0;
-  for(int l0=0;l0<Lp[i0];l0++){
+  for(int l0=0;l0<L[i0];l0++){
     h1[l0]=gsl_vector_get(v,m++);
     if(par->naive) continue;
     for(int i=0; i<nsnp; i++){ 
       if(i==i0) continue;
-      for(int l1=0; l1<Lp[i]; l1++)
-        J1[i][Lp[i]*l0+l1]=gsl_vector_get(v,m++);
+      for(int l1=0; l1<L[i]; l1++)
+        J1[i][L[i]*l0+l1]=gsl_vector_get(v,m++);
     }
   }
 
   int nind=int((par->ai).size());
 
-  for(int l=0;l<Lp[i0];l++) s1[l]=0;
+  for(int l=0;l<L[i0];l++) s1[l]=0;
   if(!par->naive){
     for(int i=0; i<nsnp; i++){
-      s2[i].resize(Lp[i0]*Lp[i]);
-      for(int l=0;l<Lp[i0]*Lp[i];l++) s2[i][l]=0;
+      s2[i].resize(L[i0]*L[i]);
+      for(int l=0;l<L[i0]*L[i];l++) s2[i][l]=0;
     }
   }
 
   for(int k=0;k<nind;k++){
     vector<double> peff(L[i0]);
     double lz=0;
-    pan3(peff, nsnp, i0, L, Lp, (par->ai)[k], h1, J1, lz, par->naive);
+    pan3(peff, nsnp, i0, L, (par->ai)[k], h1, J1, lz, par->naive);
     for(int l0=0;l0<L[i0];l0++){
       double f=peff[l0]/nind;
-      if(L[i0]==Lp[i0])
-        s1[l0]+= f;
-      else
-        s1[0]+= f*(l0+1);
+      s1[l0]+= f;
       if(par->naive) continue;
       for(int j=0;j<nsnp;j++){
         if(j==i0) continue;
         short a=(par->ai)[k][j];
         if(a==0) continue;
-        if(L[j]==Lp[j])
-          s2[j][Lp[j]*l0+a-1] += f;
-        else
-          s2[j][0] += f*(l0+1)*a;
+        s2[j][L[j]*l0+a-1] += f;
       }
     }
   }
 
-  if(L[i0]==Lp[i0]){
-    for(int l0=0;l0<L[i0];l0++){
-      s1[l0] += lambda*h1[l0] - (par->f1)[l0];
-      if(par->naive) continue;
-      for(int j=0;j<nsnp;j++){
-        if(j==i0) continue;
-        for(int l1=0;l1<L[j];l1++)
-          s2[j][L[j]*l0+l1]+=-(par->f2)[j][L[j]*l0+l1]
+  for(int l0=0;l0<L[i0];l0++){
+    s1[l0] += lambda*h1[l0] - (par->f1)[l0];
+    if(par->naive) continue;
+    for(int j=0;j<nsnp;j++){
+      if(j==i0) continue;
+      for(int l1=0;l1<L[j];l1++)
+        s2[j][L[j]*l0+l1]+=-(par->f2)[j][L[j]*l0+l1]
              +lambda*J1[j][L[j]*l0+l1];
-      }
-    }
-  } else{
-    s1[0] += lambda*h1[0];
-    if(!par->naive){
-      for(int j=0; j<nsnp; j++)
-        if(j!=i0) s2[j][0] += lambda*J1[j][0];
-    }
-    for(int l0=0; l0<L[i0]; l0++){
-      s1[0] -= (par->f1)[l0]*(l0+1);
-      if(par->naive) continue;
-      for(int j=0; j<nsnp; j++){
-        if(j==i0) continue;
-        for(int l1=0; l1<L[j]; l1++)
-          s2[j][0] -= (par->f2)[j][L[j]*l0+l1]*(l0+1)*(l1+1);
-      }
     }
   }
 
   m=0;
-  for(int l0=0;l0<Lp[i0];l0++){
+  for(int l0=0;l0<L[i0];l0++){
     gsl_vector_set(df,m++,s1[l0]);
     if(par->naive) continue;
     for(int i=0; i<nsnp; i++){ 
       if(i==i0) continue;
-      for(int l1=0;l1<Lp[i];l1++)
-        gsl_vector_set(df,m++,s2[i][Lp[i]*l0+l1]);
+      for(int l1=0;l1<L[i];l1++)
+        gsl_vector_set(df,m++,s2[i][L[i]*l0+l1]);
     }
   }
 }
@@ -226,7 +200,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
                const vector<short> &L, double lambda, 
                vector<double> &h, vector<vector<double> > &J, int nprint, 
                unsigned int Imax, double Tol, int verbose, double &lz, 
-               bool numeric, bool naive, bool &failed){
+               bool naive, bool &failed){
 
   size_t iter=0;
   int status;
@@ -244,12 +218,10 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   gsl_vector *x;
   gsl_multimin_function_fdf my_func;
 
-  vector<short> Lp = L;
-  if(numeric) for(int i=0; i<nsnp; i++) Lp[i] = 1;
-  int ndim = Lp[i0];
+  int ndim = L[i0];
   if(!naive){
     for(int i=0; i<nsnp; i++)
-      if(i!=i0) ndim += Lp[i0]*Lp[i];
+      if(i!=i0) ndim += L[i0]*L[i];
   }
   
   my_func.n=ndim;         
@@ -261,7 +233,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   T=gsl_multimin_fdfminimizer_vector_bfgs2;  // BFGS2 optimizer
   s=gsl_multimin_fdfminimizer_alloc(T,ndim);
 
-  Param par={i0, ai, L, Lp, lambda, f1, f2, lz, naive};
+  Param par={i0, ai, L, lambda, f1, f2, lz, naive};
 
   my_func.params=&par;
   gsl_vector_set_zero(x);  // initial guess
@@ -277,29 +249,27 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
         Rcpp::Rcerr << " GSL status code " << status << endl;
         failed=true;
         break;
-//      exit(1);
       }
       status=gsl_multimin_test_gradient(s->gradient,Tol);
   }while(status==GSL_CONTINUE && iter< Imax); 
   if(iter==Imax)
     Rcpp::Rcerr << "BFGS2 iteration failed to converge after " 
          << Imax << " iterations\n";
-//  if(verbose > 0 && i0%max(nsnp/10,1)==0) 
     if(verbose > 0) Rcpp::Rcout << "  Predictor " << i0+1 << ": " << iter
          << " iterations, likelihood = " << s->f << endl;
 
-  h.resize(Lp[i0]);
+  h.resize(L[i0]);
   J.resize(nsnp);
   double min=0;
-  for(int i=0; i<nsnp; i++) J[i].resize(Lp[i0]*Lp[i]);
+  for(int i=0; i<nsnp; i++) J[i].resize(L[i0]*L[i]);
   int m=0;
-  for(int l0=0;l0<Lp[i0];l0++){
+  for(int l0=0;l0<L[i0];l0++){
     h[l0]=gsl_vector_get(s->x,m++);
     if(naive) continue;
-    for(int i=0; i<nsnp; i++) for(int l1=0;l1<Lp[i];l1++){
-        if(i==i0) J[i][Lp[i]*l0+l1]=0;
-        else 
-          J[i][Lp[i]*l0+l1]=gsl_vector_get(s->x,m++);
+    for(int i=0; i<nsnp; i++) for(int l1=0;l1<L[i];l1++){
+      if(i==i0) J[i][L[i]*l0+l1]=0;
+      else 
+        J[i][L[i]*l0+l1]=gsl_vector_get(s->x,m++);
     }
   }
   min=-nind*(s->f);
