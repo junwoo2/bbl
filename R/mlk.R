@@ -15,7 +15,7 @@
 #' @param method \code{c('pseudo','mf')} for pseudo-likelihood maximization or
 #'        mean field inference.
 #' @param lambda Vector of L2 regularization parameters for 
-#'        \code{method = 'pseudo'}. Inference will be repeated for each values 
+#'        \code{method = 'pseudo'}. Inference will be repeated for each value 
 #'        of \code{lambda}.
 #' @param symmetrize Enforce the symmetry of interaction parameters by
 #'        taking mean values of the matrix and its trace:

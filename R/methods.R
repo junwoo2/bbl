@@ -147,24 +147,22 @@ ham <- function(x, h, J, naive){
 }
 
 #' @describeIn bbl
-#' Subsetting of \code{bbl} object along rows (sample index) and 
-#'   columns (predictor index)
+#' Subsetting of \code{bbl} object along rows (sample index)
 #' @param x Object of class \code{bbl} to be subsetted
 #' @param i Row index to keep
-#' @param j column index to keep
+#' @param j Not used.
 #' @param remove.const Remove predictor levels not found in data.
 #' @export
 setMethod('[', 'bbl', function(x,i,j, remove.const=TRUE){
   
   data <- x@data
+  iy <- which(colnames(x@data)==x@y)
   if(!missing(i)){
     i <- as.vector(i)
     data <- data[i,]
   }
-  if(!missing(j)){
-    j <- as.vector(j)
-    data <- data[,j]
-  }
+  if(!missing(j))
+    stop('column subsetting not implemented')
   if(remove.const)
     x <- bbl(data=data, groups=x@groups, y=x@y)
   else
