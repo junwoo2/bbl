@@ -21,7 +21,6 @@
 \SweaveOpts{engine=R, eps=FALSE, keep.source = TRUE}
 <<preliminaries, echo=FALSE, results=hide>>=
 options(prompt = "R> ", continue = "+  ", width = 70, useFancyQuotes = FALSE)
-library("MASS")
 @
 
 
@@ -47,23 +46,27 @@ Discrete Predictors in R}
 
 %% - \Abstract{} almost as usual
 \Abstract{
-  Non-regression-based inferences, such as discriminant analysis, can account for
-  the effect of predictor distributions that may be significant in big data modeling.
-  We describe \pkg{bbl}, an \proglang{R} package for Boltzmann Bayes learning,
-  which enables a comprehensive supervised learning of the association between
-  a large number of discrete factors and multi-level response variables. Its basic 
-  underlying statistical model is a (fully visible) Boltzmann machine inferred for each
-  distinct response level. The algorithm reduces to the naive Bayes learner when interaction is ignored.
-  We illustrate example use cases for various scenarios, ranging from modeling of a relatively small
-  set of factors with heterogeneous levels to those with hundreds or more predictors with uniform levels 
-  such as image or genomic data sets. We show how \pkg{bbl} explicitly quantifies the
-  extra power provided by interactions via higher predictive performance of the model. In comparison 
-  to deep learning-based methods such as restricted Boltzmann machines, \pkg{bbl}-trained models offer 
-  the advantage of straightforward interpretation via their single-variable and interaction parameters.
+  Non-regression-based inferences, such as discriminant analysis, 
+  can account for the effect of predictor distributions that may be 
+  significant in big data modeling. We describe \pkg{bbl}, an \proglang{R}
+  package for Boltzmann Bayes learning, which enables a comprehensive
+  supervised learning of the association between a large number of 
+  discrete factors and multi-level response variables. Its basic underlying
+  statistical model is a collection of (fully visible) Boltzmann machines
+  inferred for each distinct response level. The algorithm reduces to the
+  naive Bayes learner when interaction is ignored. We illustrate example use
+  cases for various scenarios, ranging from modeling of a relatively small
+  set of factors with heterogeneous levels to those with hundreds or more
+  predictors with uniform levels such as image or genomic data. 
+  We show how \pkg{bbl} explicitly quantifies the extra power provided by
+  interactions via higher predictive performance of the model. In comparison
+  to deep learning-based methods such as restricted Boltzmann machines,
+  \pkg{bbl}-trained models can be interpreted directly via via their 
+  bias and interaction parameters.
 }
 
 \Keywords{Supervised learning, Boltzmann machine, naive Bayes, discriminant analysis, \proglang{R}}
-\Plainkeywords{Supevised learning, Boltzmann machine, naive Bayes, discriminant analysis, R}
+\Plainkeywords{Supervised learning, Boltzmann machine, naive Bayes, discriminant analysis, R}
 
 %% - \Address{} of at least one author
 %% - May contain multiple affiliations for each author
@@ -88,10 +91,10 @@ Discrete Predictors in R}
 
 Many supervised learning tasks involve modeling discrete response
 variables $y$ using predictors ${\bf x}$ that can occupy discrete factor levels \citep{hastie_etal}.
-Ideally, it would be best to model the joint distribution $P({\bf x},y)$, which 
-contains the full information of predictor/response sets, e.g., via maximum likelihood 
+Ideally, it would be best to model the joint distribution $P({\bf x},y)$
+via maximum likelihood, 
 \begin{equation}
-{\hat \Theta} = \argmax_\Theta \ln P({\bf x},y|\Theta)
+{\hat \Theta} = \argmax_\Theta \left[\ln P({\bf x},y|\Theta)\right],
 \end{equation}
 to find parameters $\Theta$. Regression-based methods use 
 $P({\bf x},y)=P(y|{\bf x})P({\bf x})\simeq P(y|{\bf x})$. Their advantages include
@@ -102,13 +105,19 @@ information not accessible from regression when there are many covarying predict
 To make predictions for $y$ using $P({\bf x}|y)$, one uses the Bayes' formula.
 Examples include linear and quadratic discriminant analyses 
 \citep[pp.~106-119]{hastie_etal} for continuous ${\bf x}$. For discrete ${\bf x}$, naive Bayes 
-is the simplest approach, where the covariance among ${\bf x}$ is ignored via
-$P({\bf x}|y)\simeq \prod_i P(x_i|y)$ with ${\bf x}=(x_1,\cdots,x_m)$.
+is the simplest approach, where the covariance among ${\bf x}$ is ignored 
+via
+\begin{equation}
+P({\bf x}|y)\simeq \prod_i P(x_i|y)
+\label{eq:nbayes}
+\end{equation}
+with ${\bf x}=(x_1,\cdots,x_m)$.
 
-In this paper, we focus on supervised learners taking into account the high-dimensional nature of 
-$P({\bf x}|y)$ beyond the naive Bayes-level description. Namely, 
-a suitable parametrization is provided by the Boltzmann machine \citep{ackley_etal}, which for the
-simple `numeric' predictor model ($x_i=0,1,\cdots, L-1$ with its effect on response ordered accordingly),
+In this paper, we focus on supervised learners taking into account the 
+high-dimensional nature of $P({\bf x}|y)$ beyond the naive Bayes-level description given by Eq.~(\ref{eq:nbayes}). Namely, 
+a suitable parametrization is provided by the Boltzmann machine 
+\citep{ackley_etal}, which for the simple `numeric' predictor model 
+($x_i=0,1,\cdots, L_i-1$ with its effects on response ordered accordingly),
 \begin{equation}
 P({\bf x}|y)=\frac{1}{Z_y}\exp\left(\sum_i h_i^{(y)}x_i + \sum_{i<j} J_{ij}^{(y)}x_ix_j\right),
 \label{eq:boltzmann}
@@ -117,7 +126,7 @@ where $Z_y$ is the normalization constant, or partition function. Equation~(\ref
 is the Gibbs distribution for Ising-type models in statistical mechanics \citep{chandler}. 
 The two sets of parameters $h_i^{(y)}$ and $J_{ij}^{(y)}$ each represent single variable and 
 two-point interaction effects, respectively. 
-When the latter vanishes the model leads to the naive Bayes classifier.
+When the latter vanishes, the model leads to the naive Bayes classifier.
 Although exact inference of Eq.~(\ref{eq:boltzmann}) from data is in general not possible, recent
 developments led to many accurate and practically usable approximation schemes 
 \citep{hyvarinen, morcos_etal,nguyen_etal, nguyen_wood-ieee,nguyen_wood}, 
@@ -128,24 +137,25 @@ and mean field theory \citep{chandler,nguyen_etal}.
 A recently described package \pkg{BoltzMM} can fit the (`fully visible') Boltzmann machine given by 
 Eq.~(\ref{eq:boltzmann}) to data using pseudo-likelihood inference \citep{BoltzMM,jones_etal}. 
 In contrast, classifiers based on this class of models remain largely unexplored. Supervised learners using 
-statistical models of the type (\ref{eq:boltzmann}) usually takes the form of {\it restricted} 
-Boltzmann machines instead, where (visible) predictors are augmented by 
-hidden units and interactions are zero except between visible and hidden units \citep{hinton}. 
+statistical models of the type (\ref{eq:boltzmann}) usually takes the form 
+of the {\it restricted} Boltzmann machines instead \citep{hinton}, 
+where (visible) predictors are augmented by hidden units and interactions 
+are zero except between visible and hidden units. 
 The main drawback of such layered Boltzmann machine learners, as is common in all deep learning
 algorithms, is the difficulty in interpreting trained models. In contrast, with the fully visible architecture, 
 $J_{ij}^{(y)}$ in Eq.~(\ref{eq:boltzmann}), if inferred with 
 sufficient power while avoiding overfitting, has direct interpretation of interaction between two variables.
 
-We refer to such learning/prediction algorithms using (a generalized version of) 
-Eq.~(\ref{eq:boltzmann}) for its statistical model as the Boltzmann Bayes (BB) inference.
-An implementation specific to genomic single-nucleotide polymorphism (SNP) data 
-(two levels--case and control--of $y$ and uniform three-level predictors, i.e., 
-allele counts of $x_i= 0,1,2$) have been reported previously 
-\citep{woo_etal-2016}. 
-However, this software, written in \proglang{C++}, was geared specifically toward 
-genome-wide association studies and is not suitable for use in more general settings. 
-We introduce an R package \pkg{bbl} (Boltzmann Bayes Learner), which uses \proglang{C++} functions for 
-performance, allowing the user to train and test statistical models in a variety of 
+We refer to such learning/prediction algorithms using a generalized version
+of Eq.~(\ref{eq:boltzmann}) as Boltzmann Bayes (BB) inference.
+An implementation specific to genomic single-nucleotide polymorphism (SNP) data (two response groups, e.g., case and control, and uniform three-level
+predictors, i.e., allele counts of $x_i= 0,1,2$) has been reported 
+previously \citep{woo_etal-2016}. However, this \proglang{C++} software 
+was geared specifically toward genome-wide association studies and is not
+suitable for use in more general settings. 
+We introduce an R package \pkg{bbl} (Boltzmann Bayes Learner), which 
+uses both \proglang{R} and \proglang{C++} for usability and performance,
+allowing the user to train and test statistical models in a variety of 
 different usage settings.
 
 \section{Model and algorithm} 
@@ -190,7 +200,8 @@ We refer to $h_i^{(y)}(x)$ and $J_{ij}^{(y)}(x,x^\prime)$ as bias and interactio
 respectively.
 
 A simpler model can be used when factors are ordered and numeric: $x_i=0,1,\cdots, L_i-1$. The `numeric' model
-is then defined by Eq.~(\ref{eq:boltzmann}). In this case, $\Theta_y=(h_i^{(y)},J_{ij}^{(y)})$
+is then defined by Eq.~(\ref{eq:boltzmann}). In this case, 
+$\Theta_y=\{h_i^{(y)},J_{ij}^{(y)}\}$
 consists of ${\rm d.f.}= m + m(m-1)/2=m(m+1)/2$ parameters 
 [one $h$ and $J$ for each $i$ and $(i,j)$ pairs], where $m$ is the total number of predictors.
 A further simplification of numeric model is to limit predictor levels to be binary ($x_i=0,1$).
@@ -241,20 +252,22 @@ with first derivatives
 \begin{subequations}
 \begin{eqnarray}
 \frac{\partial L_{iy}/n_y}{\partial h_i^{(y)}(x)} &=& {\hat f}_i^{(y)}(x) 
-- \frac{1}{n_y}\sum_{k\in y} \frac{e^{{\bar h}_i^{(y)}(x|x_{l\backslash i}^k)}}{Z_{iy}(x_{l\backslash i}^k)}
+- \frac{1}{n_y}\sum_{k\in y} P_i(x|y, x_{l\backslash i})
+%\frac{e^{{\bar h}_i^{(y)}(x|x_{l\backslash i}^k)}}{Z_{iy}(x_{l\backslash i}^k)}
 -\lambda h_i^{(y)}(x),
 \\
 \frac{\partial L_{iy}/n_y}{\partial J_{ij}^{(y)}(x,x^\prime)} &=& {\hat f}_{ij}^{(y)}(x,x^\prime) 
 - \frac{1}{n_y}\sum_{k\in y} \mathbbm{1}(x_j^k=x^\prime)
- \frac{e^{{\bar h}_i^{(y)}(x|x_{l\backslash i}^k)}}{Z_{iy}(x_{l\backslash i}^k)}
+% \frac{e^{{\bar h}_i^{(y)}(x|x_{l\backslash i}^k)}}{Z_{iy}(x_{l\backslash i}^k)}
+P_i(x|y, x_{l\backslash i})
 -\lambda J_{ij}^{(y)}(x,x^\prime),
 \end{eqnarray}
 \label{eq:partial}
 \end{subequations}
 where ${\hat f}_i^{(y)}(x)$ and ${\hat h}_{ij}^{(y)}(x,x^\prime)$ are the first and second moments
 of predictor values and $\mathbbm{1}(x)$ is the indicator function.
-In \pkg{bbl}, Eqs.~(\ref{eq:partial}) are solved in \proglang{C++} functions using a quasi-Newton
-method \code{gsl_multimin_fdfminimizer_vector_bfgs2} in GNU Scientific Library 
+In \pkg{bbl}, Eqs.~(\ref{eq:partial}) are solved in \proglang{C++} functions using the quasi-Newton optimization function 
+\code{gsl_multimin_fdfminimizer_vector_bfgs2} in GNU Scientific Library 
 (\url{https://www.gnu.org/software/gsl}).
 As can be seen from the third equality of Eq.~(\ref{eq:Ly2}), the pseudo-likelihood inference
 decouples into individual predictors, and the inference for each $i$ in \pkg{bbl} is performed
@@ -279,25 +292,25 @@ i.e., negative inverse of the covariance matrix,
 \begin{equation}
 \mathsf{C}^{(y)}_{ij}(x,x^\prime) = {\hat f}_{ij}(x,x^\prime) - {\hat f}_i(x){\hat f}_j(x^\prime).
 \end{equation}
-Equation~(\ref{eq:mf1}) can be interpreted as treating discrete ${\bf x}$ as if it is multivariate normal:
-Eq.~(\ref{eq:pxy}) would then be the counterpart of the multivariate normal p.d.f. and 
-$-J_{ij}^{(y)}(x,x^\prime)$ would correspond to the precision matrix.
-In real data where $n \sim {\rm d.f}$ or less, the matrix inversion is often ill-behaved. 
-Regularization is done by interpolation of $\mathsf{C}^{(y)}$ between non-interacting (naive Bayes)
+Equation~(\ref{eq:mf1}) can be interpreted as treating discrete ${\bf x}$ as if it were multivariate normal:
+Eq.~(\ref{eq:pxy}) would then be the counterpart of the multivariate normal p.d.f. with 
+$-J_{ij}^{(y)}(x,x^\prime)$ corresponding to the precision matrix.
+In real data where $n \sim {\rm d.f.}$ or less, the matrix inversion is often ill-behaved. It is regularized by interpolation of $\mathsf{C}^{(y)}$ 
+between non-interacting (naive Bayes)
 ($\epsilon=0$) and fully interacting limits ($\epsilon=1$):
 \begin{equation}
-\mathsf{C}^{(y)}  \rightarrow \mathsf{\bar C}^{(y)}=(1-\epsilon)\frac{{\rm Tr}\:\mathsf{C}^{(y)}}
+\mathsf{C}^{(y)}  \leftarrow \mathsf{\bar C}^{(y)}=(1-\epsilon)\frac{{\rm Tr}\:\mathsf{C}^{(y)}}
 {{\rm Tr}\:\mathsf{I}}{\mathsf I} + \epsilon\mathsf{C}^{(y)},
 \end{equation}
 where $\mathsf{I}$ is the identity matrix of the same dimension as $\mathsf{C}^{(y)}$.
 The parameter $\epsilon$ serves as a good handle for probing the relative importance of interaction 
 effects.
 
-The field parameters are given in mean field by using an analog of Eq.~(\ref{eq:barh}):
+The bias parameters are given in mean field by an analog of Eq.~(\ref{eq:barh}),
 \begin{equation}
 {\hat h}_i^{(y)}(x)=
 {\bar h}_i^{(y)}(x)
--\sum_{j\ne i}\sum_{x^\prime}{\hat J}_{ij}^{(y)}(x,x^\prime){\hat f}_j^{(y)}(x^\prime)
+-\sum_{j\ne i}\sum_{x^\prime}{\hat J}_{ij}^{(y)}(x,x^\prime){\hat f}_j^{(y)}(x^\prime),
 \label{eq:mf}
 \end{equation}
 and 
@@ -307,10 +320,10 @@ and
 \end{equation}
 where ${\hat f}_i^{(y)}(0)$ is the frequency of (reference) factor $x_i$ for which the parameters are zero
 ($a_i=0$).
-Equation~(\ref{eq:mf}) relates the effective field for predictor $x_i$ (the first term on the right)
-as the sum of univariate field (left-hand side) and combined mean effects of interactions with other
+Equation~(\ref{eq:mf}) relates the effective bias for predictor $x_i$ (the first term on the right)
+as the sum of univariate bias (left-hand side) and combined mean effects of interactions with other
 variables (the second term on the right) \citep{chandler}.
-The effective field is related to frequency via Eq.~(\ref{eq:hbari}) because
+The effective bias is related to frequency via Eq.~(\ref{eq:hbari}) because
 \begin{equation}
 {\hat f}_i^{(y)}(x)
 =\frac{e^{{\bar h}_i^{(y)}(x)}}{Z_{iy}}={\hat f}_i^{(y)}(0)\,e^{{\bar h}_i^{(y)}(x)}
@@ -340,26 +353,29 @@ Eq.~(\ref{eq:mf}).
 For prediction, we combine predictor distributions for all response groups via Bayes formula:
 \begin{equation}
 P(y|{\bf x})=\frac{P({\bf x}|y)p_y}{\sum_{y^\prime}P({\bf x}|y^\prime) p_{y^\prime}}
-=\frac{1}{1+\sum_{y^\prime\ne y}P({\bf x}|y^\prime)p_{y^\prime}/P({\bf x}|y)p_y}.
+=\frac{1}{1+\sum_{y^\prime\ne y} P({\bf x}|y^\prime) p_{y^\prime}/
+P({\bf x}|y) p_y}
+=\frac{1}{1+e^{-F_y({\bf x})}},
 \label{eq:py}
 \end{equation}
-For binary response (e.g., coded as $y=0,1$), Eq.~(\ref{eq:py}) reduces to
-\begin{equation}
-P(y=1|{\bf x})={\rm logistic}[F({\bf x})]=\frac{1}{1+e^{-F({\bf x})}},
-\label{eq:py1}
-\end{equation}
 where 
+\begin{equation}
+F_y({\bf x})=\ln\left[\frac{P({\bf x}|y)p_y}
+{\sum_{y^\prime \ne y}P({\bf x}|y^\prime)p_{y^\prime}}\right].
+\label{eq:Fy}
+\end{equation}
+For binary response coded as $y=0,1$, Eq.~(\ref{eq:Fy}) reduces to
 \begin{eqnarray}
-F({\bf x})&=&\ln P({\bf x}|y=1)-\ln P({\bf x}|y=0) + \ln (p_1/p_0)\nonumber\\
+F_1({\bf x})&=&\ln P({\bf x}|y=1)-\ln P({\bf x}|y=0) + \ln (p_1/p_0)\nonumber\\
 &=& \sum_i \left[h_i^{(1)}(x_i)-h_i^{(0)}(x_i)\right]
 +\sum_{i<j} \left[ J_{ij}^{(1)}(x_i,x_j) -J_{ij}^{(0)}(x_i,x_j)\right]+
 \ln \frac{Z_0 p_1}{Z_1p_0}.
 \label{eq:F}
 \end{eqnarray}
-Therefore, if $J_{ij}^{(y)}(x,x^\prime)=0$ (naive Bayes), Eq.~(\ref{eq:py1}) takes the form of
-the logistic regression formula. However, the actual naive Bayes parameter values differ from 
-those from logistic regression.
+Therefore, if $J_{ij}^{(y)}(x,x^\prime)=0$ (naive Bayes), Eq.~(\ref{eq:py}) takes the form of
+the logistic regression formula. However, the actual naive Bayes parameter values differ from logistic regression fit.
 No expression for $P(y|{\bf x})$ simpler than Eq.~(\ref{eq:py}) exists for data with more than two groups.
+
 Two options for computing $Z_y$ are either
 \begin{equation}
 \ln Z_y = \frac{1}{n_y}\sum_{k\in y}\sum_i 
@@ -373,10 +389,10 @@ or
 \label{eq:lnzy}
 \end{equation}
 which arises from the mean field theory. Equation~(\ref{eq:lnzy}) (option \code{mf = TRUE} in \pkg{bbl})
-is faster than (\ref{eq:lnz1}) and is preferrable for large $n$.
+is faster than (\ref{eq:lnz1}) and is preferable for large $n$.
 
-For a test data set for which the actual group identities $y_k$ of data points are known, 
-the prediction score (accuracy) may be defined as
+For a test data set for which the actual group identity $y_k$ of data 
+instances are known, the prediction score (accuracy) may be defined as
 \begin{equation}
 s=\frac{1}{n}\sum_k \mathbbm{1}\left[{\hat y}({\bf x}^k)=y_k\right],
 \label{eq:s}
@@ -389,14 +405,14 @@ where
 If response is binary, the score defined by Eq.~(\ref{eq:s}) is sensitive to marginal distributions of 
 the two groups via Eq.~(\ref{eq:F}). 
 The area under curve (AUC) of receiver operating characteristic is a more robust performance measure
-independent of probability cutoff. In \pkg{bbl}, the predition score
+independent of probability cutoff. In \pkg{bbl}, the prediction score
 given by Eqs.~(\ref{eq:s}) and (\ref{eq:yhat}) is used in general with the option to use AUC for binary
 response using R package \pkg{pROC} \citep{proc}.
 
 \section{Software Usage and Tests}
 \label{sec:usage}
 \subsection[Titanic data]{\code{Titanic} data}
-We first illustrate BB inference for full multi-response data sets by \pkg{bbl} using the base 
+We first illustrate BB inference for full multilevel response data sets by \pkg{bbl} using the base 
 \proglang{R} data \code{Titanic}:
 %
 <<data>>=
@@ -438,11 +454,11 @@ The BB inference in \pkg{bbl} uses objects of \code{S4} class \code{bbl}
 instantiated by input training data:
 %
 <<class>>=
-model <- bbl(data=dtrain,y='Survived')
+model <- bbl(data=dtrain, y='Survived')
 model
 @
 %
-The option \code{y} specifies the column name of response variable.
+The argument \code{y} specifies the column name of the response variable.
 
 We first try a single pseudo-likelihood inference by
 %
@@ -466,17 +482,19 @@ head(pr)
 pROC::roc(response=dtest$Survived, predictor=pr[,2], direction='<')$auc
 @
 %
-where Eq.~(\ref{eq:py}) is used with ${\bf x}$ from the supplied \code{newdata}.
-The \code{newdata} can either contain the response column as in the above, which the program will disregard,
-or only the predictor columns. The predictor columns must either have the same order as in the training data 
-or be labeled with column names.
+Here, Eq.~(\ref{eq:py}) was used with ${\bf x}$ from the supplied \code{newdata}.
+The \code{newdata} can either contain the response column as in the above
+example (the program will disregard it), or only the predictor columns. 
+The predictor columns must either have the same order as in the training 
+data or be labeled with column names.
 
 One can do cross-validation applied to \code{dtrain} data, dividing it into 
 \code{nfold = 5} train/validation subsets of 4:1 proportion, and aggregating
-predictions for validation sets using trained model:
+predictions for validation sets using the trained model:
 %
 <<cv>>=
-cv <- crossval(model, method='pseudo', lambda=10^seq(-6,-2,0.5),verbose=0)
+cv <- crossval(model, method='pseudo', lambda=10^seq(-6,-2,0.5),
+               verbose=0)
 cv
 @
 %
@@ -517,7 +535,7 @@ head(xi)
 %
 The function \code{sample_xi} will list all possible predictor states and sample configurations 
 based on the distribution (\ref{eq:pxy}). The total number of states here is $L^m=3^5$, which is amenable for 
-exhaustive enumeration. However, this is possible only for small $m$ and $L$. 
+exhaustive enumeration. However, this is possible only for small $m$ and $L$.
 If either are even moderately larger, \code{sample_xi} will hang.
 
 Because there is only one response group, we call the main driver \code{mlestimate} of \pkg{bbl} inference 
@@ -528,8 +546,13 @@ fit <- mlestimate(xi=xi, method='pseudo',lambda=0)
 names(fit)
 @
 %
-Figure~\ref{fig:par} compares the true and inferred parameters. Here, the sample size was large 
-enough that no regularization was necessary.
+In contrast to \code{train}, which is designed for use with \code{bbl}
+object with multiple response groups and predictors in factors,
+\code{mlestimate} is for a single group and requires input matrix 
+\code{xi} whose elements are integral codes of factors: $a_i=0,\cdots,L_i=1$.
+
+Figure~\ref{fig:par} compares the true and inferred parameters. Here, the
+sample size was large enough that no regularization was necessary.
 
 \begin{figure}[t!]
 \centering
@@ -661,30 +684,30 @@ mnist
 %
 Note that when the object is created, the predictors without factor variations
 (pixels that are always empty) are dropped from data.
-%%
-%<<mnist2>>=
-%cv <- crossval(mnist, method='mf', eps=0.1)
-%@
-%%
+%
+<<mnist2>>=
+cv <- crossval(mnist, method='mf', eps=0.1)
+@
+%
 The above run will take a few minutes. By feeding a vector of $\epsilon$ values, one can obtain
 the profile shown in Fig.~\ref{fig:mnist} (white symbols). The substantial jump in 
 performance under $\epsilon^*\sim 0.1$ over $\epsilon \rightarrow 0$ (naive Bayes) limit 
-gives a measure of interactin effects.
+gives a measure of interaction effects.
 The relatively small value of $\epsilon^*$ at the optimal condition,
 compared to e.g. Fig.~\ref{fig:mfcv}{\bf a}, reflects the sparseness of image data. 
 
 We now retrain the model without cross-validation under $\epsilon^*$ and classify test set 
 (also down-sampled to $n=500$) images:
-%%
-%<<mnist3>>=
-%mnist <- train(mnist, method='mf', eps=0.1)
-%dtest <- read.csv(system.file('extdata/mnist_test.csv',package='bbl'))
-%dtest <- dtest[,colnames(dtest) %in% colnames(mnist@data)]
-%pr <- predict(mnist, newdata=dtest[,-1], progress.bar=FALSE)
-%yhat <- colnames(pr)[apply(pr, 1, which.max)]
-%mean(yhat==dtest$y)
-%@
-%%
+%
+<<mnist3>>=
+mnist <- train(mnist, method='mf', eps=0.1)
+dtest <- read.csv(system.file('extdata/mnist_test.csv',package='bbl'))
+dtest <- dtest[,colnames(dtest) %in% colnames(mnist@data)]
+pr <- predict(mnist, newdata=dtest[,-1], progress.bar=FALSE)
+yhat <- colnames(pr)[apply(pr, 1, which.max)]
+mean(yhat==dtest$y)
+@
+%
 Since \code{mnist} dropped a subset of original predictors, the test data must be filtered accordingly. 
 Note the slight increase in test score compared to cross-validation score because of the use of full 
 training data. Set \code{progress.bar = TRUE} to monitor the progress in a slow \code{predict} run.
@@ -701,11 +724,11 @@ best-performing large-scale neural network algorithms
 \hline
 Algorithm           & Method           & Error rate (\%) & Reference/package   \\ \hline
 Linear classifier   & 1-layer NN       & $12.0$        & \cite{lecun_etal}\\
-K-nearest neighbors & Euclidean (L2)   & ~$5.0$         & \cite{lecun_etal}\\
-2-layer NN          & 300 hidden units & ~$4.7$         & \cite{lecun_etal}\\
-RBM                 & 2-layer          & ~$0.95$        & \cite{salakhutdinov_hinton}\\
+K-nearest neighbors & Euclidean (L2)   & $5.0$         & \cite{lecun_etal}\\
+2-layer NN          & 300 hidden units & $4.7$         & \cite{lecun_etal}\\
+RBM                 & 2-layer          & $0.95$        & \cite{salakhutdinov_hinton}\\
 Naive Bayes         & Mean field ($\epsilon=0$) & $30.8$ &  \pkg{bbl}                 \\
-BB                  & Mean field ($\epsilon=0.05$)      & ~$6.8$         &    \pkg{bbl}               \\
+BB                  & Mean field ($\epsilon=0.05$)      & $6.8$         &    \pkg{bbl}               \\
 \hline
 \end{tabular}
 \caption{\small \label{tb:mnist} Performance comparison of BB inference and other models on MNIST data set.
@@ -716,13 +739,14 @@ BB, Boltzmann Bayes; NN, neural network; RBM, restricted Boltzmann machine.}
 \label{sec:tfbs}
 One of machine learning tasks of considerable interest in biomedical applications is the 
 detection of transcription factor binding sites within genomic sequences \citep{wasserman_sandelin}.
-Transcription factors are proteins that bind to specific DNA sequence segment and regulate
+Transcription factors are proteins that bind to specific DNA sequence segments and regulate
 gene expression programs.
-Public databases, such as JASPAR \citep{jaspar2018}, currently host known transcription factors and their 
+Public databases, such as JASPAR \citep{jaspar2018}, host known transcription factors and their 
 binding sequence motifs. Supervised learners allow users to leverage these data sets and search for
-bindnig motifs from candidate sequences.
+binding motifs from candidate sequences.
 
-Here, we illustrate such inferences using an example set (MA0001.1) of binding motif sequences from JASPAR
+Here, we illustrate such an inference using an example set 
+(MA0561.1) of binding motif sequences from JASPAR
 (\url{http://jaspar.genereg.net}):
 %
 <<jaspar>>=
@@ -749,7 +773,7 @@ data <- rbind(data.frame(y=rep('Binding', nsample), seq),
 data <- data[sample(NROW(data)), ]
 @
 %
-We asess the performance of pseudo-likelihood and mean field inferences below using cross-validation:
+We assess the performance of pseudo-likelihood and mean field inferences below using cross-validation:
 %
 <<jaspar3>>=
 model <- bbl(data=data)
@@ -761,9 +785,8 @@ mf
 @
 %
 In both results, there is an optimal, intermediate range of regularization with similar
-maximum AUC values (Fig.~\ref{fig:jaspar}). The level of performance attainable with
-non-interaction models, such as position frequency matrix \citep{wasserman_sandelin}, 
-corresponds to the $\epsilon=0$ limit in Fig.~\ref{fig:jaspar}{\bf a}.
+maximum AUC values (Fig.~\ref{fig:jaspar}). The level of performance attainable with non-interacting models, such as position frequency matrix \citep{wasserman_sandelin}, 
+corresponds to the $\epsilon=0$ limit in Fig.~\ref{fig:jaspar}{\bf b}.
 The AUC range obtained above is representative of the sensitivity and specificity levels one would get
 when scanning a genomic segment using a trained model for detection of a binding site to within 
 the resolution of $\sim 3$~base pairs.
@@ -778,9 +801,9 @@ Data set is from \cite{jaspar2018} (sample ID MA0561.1; see text).
 \label{fig:jaspar}
 \end{figure}
 
-We analyzed 857 data sets from JASPAR database of varying sample sizes and segment lengths with 
-the same protocol. Differences between fully optimized mean field AUC scores from non-interacting models 
-(naive Bayes) varied widely, largely independent of segment lengths (Fig.~\ref{fig:tfbs}{\bf a}). 
+We analyzed 856 data sets from JASPAR database of varying sample sizes and segment lengths with 
+the same protocol. Differences between fully optimized mean field AUC scores and those from non-interacting models (naive Bayes) varied widely, 
+largely independent of segment lengths (Fig.~\ref{fig:tfbs}{\bf a}). 
 For most of data sets, pseudo-likelihood resulted in substantially higher scores than mean field
 (Fig.~\ref{fig:tfbs}{\bf b}).
 
@@ -788,10 +811,9 @@ For most of data sets, pseudo-likelihood resulted in substantially higher scores
 \centering
 %\includegraphics[scale=1.0]{/mnt/d/bbm/paper/test_script/tfbs/pipe/tfbs}
 \includegraphics[scale=1]{tfbs}
-\caption{\small AUC scores of \pkg{bbl} model trained on 857 transcription factor binding site sequence data sets from JASPAR \cite{jaspar2018} under the same
-protocol as in Fig.~\ref{fig:jaspar}.
-({\bf a}) Comparison of naive Bayes (NB; mean field with $\epsilon=0$) and full mean
-field results. ({\bf b}) Comparison of mean field (MF) and pseudo-likelihood 
+\caption{\small AUC scores of \pkg{bbl} model trained on 856 transcription factor binding site sequence data sets from JASPAR \citep{jaspar2018} under the same protocol as in Fig.~\ref{fig:jaspar}.
+({\bf a}) Comparison of naive Bayes (NB; mean field with $\epsilon=0$) and full mean field (MF) results. 
+({\bf b}) Comparison of mean field (MF) and pseudo-likelihood 
 maximization (pseudo-L) scores. The symbol colors show the segment length of each
 binding site data (color-map in {\bf a}).
 }
@@ -801,21 +823,25 @@ binding site data (color-map in {\bf a}).
 
 \section{Summary} \label{sec:summary}
 We introduced a user-friendly R package \pkg{bbl}, implementing general
-Boltzmann Bayes model-based classifier applicable to heterogeneous, multifactorial predictor 
-data associated with a discrete multi-class response variable.
-The currently available package \pkg{BoltzMM} available for fitting data into fully visible Boltzmann 
-distribution assumes binary numeric predictors for a single, homogeneous group without
-response variables. The package \pkg{bbl} extends the basic statistical distribution to accomodate heterogeneous, 
-factor-valued predictors via Eq.~(\ref{eq:pxy}), embedding it in a Bayesian classifier for supervised learning.
+Boltzmann Bayes model-based classifiers applicable to 
+heterogeneous, multifactorial predictor data associated with a 
+discrete multi-class response variable.
+The currently available \proglang{R} package \pkg{BoltzMM} is limited
+to fitting data into a single fully visible Boltzmann distribution
+without reference to response variables, and assumes binary 
+numeric predictors. The package \pkg{bbl} extends the basic statistical distribution to accommodate heterogeneous, factor-valued predictors via 
+Eq.~(\ref{eq:pxy}), embedding it in a Bayesian classifier for supervised learning and prediction.
 
-Compared to more widely applied restricted Boltzmann machine algorithms, BB model
-explicitly infers interaction parameters for all pairs of predictors, 
-making direct interpretation of trained models possible. Tests on MNIST suggest performances comparable to other deep layer neural network models in 
+Compared to more widely applied restricted Boltzmann machine algorithms
+\citep{hinton}, the BB model explicitly infers interaction parameters 
+for all pairs of predictors, making it possible to interpret trained 
+models directly. Tests on MNIST suggest performances comparable to other 
+deep layer neural network models in 
 classification tests. It is especially suited to data types where a 
 moderate number of unordered features (such as nucleotide sequences) combine to determine class identity, as in transcription factor binding motifs 
 (Sec.~\ref{sec:tfbs}). Among the two options for inference methods, mean field
 (\code{method = `mf'}) is faster but can become memory intensive for models 
-with a large number of predictors; pseudo-likelihood maximization 
+with a large number of predictors. Pseudo-likelihood maximization 
 (\code{method = 'pseudo'}) is slower but generally performs better
 (Fig.~\ref{fig:jaspar}{\bf b}).
 
@@ -823,7 +849,7 @@ with a large number of predictors; pseudo-likelihood maximization
 
 \section*{Computational details}
 
-Installation of \pkg{bbl} requires GNU Scientific library 
+Installation of \pkg{bbl} requires the GNU Scientific library 
 \url{https://www.gnu.org/software/gsl} installed. The results in this paper 
 were obtained using \proglang{R}~\Sexpr{paste(R.Version()[6:7], collapse = ".")}. \proglang{R} itself and all packages used are available from the Comprehensive
 \proglang{R} Archive Network (CRAN) at \url{https://CRAN.R-project.org/}.

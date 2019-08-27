@@ -41,12 +41,14 @@ enum <- function(si, L, i, h, J, e=NULL, numeric=FALSE){
 #' states grows exponentially.
 #' 
 #' @param nsample Sample size
-#' @param numeric Numeric model
+#' @param type \code{'factors','numeric'}. Type of \code{bbl} model.
 #' @param predictors List of predictor factor levels.
+#' @param L Vector of upper bounds for numeric features. Output ranges for
+#'        each coumn will be \eqn{x_i=[0,L_i]}. Required if \code{type = 'numeric'}
 #' @param h Bias parameter; see \code{\link{bbl}}.
 #' @param J Interaction parameters; see \code{\link{bbl}}.
-#' @param code_out Ouput in integer codes; \eqn{x_i = 0, \cdots, L_i-1}.
-#'        If \code{FALSE}, output in factors.
+#' @param code_out Ouput in integer codes; \eqn{a_i = 0, \cdots, L_i-1}.
+#'        If \code{FALSE}, output in factors in \code{predictors}.
 #' @return Data frame of samples in rows and predictors in columns.
 #' @examples
 #' set.seed(512)
@@ -56,13 +58,23 @@ enum <- function(si, L, i, h, J, e=NULL, numeric=FALSE){
 #' for(i in 1:m) predictors[[i]] <- c('a','c','g','t')
 #' par <- randompar(predictors)
 #' xi <- sample_xi(nsample=n, predictors=predictors, h=par$h, J=par$J)
+#' head(xi)
+#' 
+#' #numeric model
+#' binary <- list()
+#' for(i in 1:m) binary[[i]] <- c(0,1)
+#' par2 <- randompar(binary)
+#' xi2 <- sample_xi(nsample=n, type='numeric', L=rep(2,m), h=par2$h, J=par2$J)
+#' head(xi2)
 #' @export
-sample_xi <- function(nsample=1, numeric=FALSE, predictors=NULL, 
+sample_xi <- function(nsample=1, type='factors', predictors=NULL, L=NULL, 
                       h, J, code_out=FALSE){
 
+  numeric <- type=='numeric'
   if(numeric){ 
     if(is.null(L)) stop('L must be given for numeric model')
     nvar <- length(L)
+    code_out <- TRUE
   } else{
     L <- NULL
     for(p in predictors) L <- c(L, length(p))
@@ -96,16 +108,16 @@ sample_xi <- function(nsample=1, numeric=FALSE, predictors=NULL,
 #' Input argument \code{predictors} is used to set up proper list 
 #' structures of parameters. \code{type = 'factors'} is assumed for 
 #' class \code{bbl}. For \code{type = 'numeric'}, use \code{predictors}
-#' as lists of binary vectors.
+#' as a list of binary vectors; see \code{\link{simulate_xi}}.
 #' 
 #' @param predictors List of predictor factor levels. See \code{\link{bbl}}.
 #' @param distr \code{c('unif','norm')} for uniform or normal distributions.
 #' @param h0 Mean of bias parameters
 #' @param dh \code{sd} of bias if \code{distr = 'unif'}. If \code{distr = 'norm'},
-#'        \eqn{h \in [h_0-dh, h_0+dh]}.
+#'        \eqn{h = [h_0-dh, h_0+dh]}.
 #' @param J0 Mean of interaction parameters.
 #' @param dJ \code{sd} of interactions if \code{distr = 'unif'}. 
-#'        If \code{distr = 'norm'}, \eqn{J \in [J_0-dJ, J_0+dJ]}.
+#'        If \code{distr = 'norm'}, \eqn{J = [J_0-dJ, J_0+dJ]}.
 #' @return List of parameters, \code{h} and \code{J}.
 #' @examples
 #' set.seed(311)

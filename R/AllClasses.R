@@ -44,8 +44,8 @@ bbl <- setClass('bbl',
 #' 
 #' @param .Object Object of class \code{bbl} to be created.
 #' @param data Data frame of training data. Expected to contain both 
-#'        predictor and response variables (columns) instances 
-#'        in each row.
+#'        predictor and response variables in columns and instances 
+#'        in rows.
 #' @param type \code{c('factors','numeric')}; predictors being
 #'        either factors or numeric. The former has multiple
 #'        bias and interaction parameters for each predictor or
@@ -84,10 +84,10 @@ bbl <- setClass('bbl',
 #' data <- data.frame(y=sample(c('Case','Control'),size=5,replace=TRUE),
 #'                    x1=rbinom(n=5, size=2, prob=0.5),
 #'                    x2=rbinom(n=5, size=3, prob=0.5))
-#' data    # Note "V1" has range [1,2]
+#' data    # Note "x1" has range [1,2]
 #' nmodel <- bbl(data, type='numeric')
 #' nmodel
-#' nmodel@data # "V1" range and data were shifted down to [0,1]
+#' nmodel@data # "x1" range and data were shifted down to [0,1]
 #' @importFrom methods initialize new callNextMethod is
 setMethod('initialize', signature=('bbl'),
           definition=function(.Object, data, type='factors', predictors=NULL, 
@@ -112,6 +112,8 @@ setMethod('initialize', signature=('bbl'),
                   fac <- fac[order(fac)]
                   if(length(fac)==1) next()
                 } else{
+                  if(!is.numeric(xi[,i])) 
+                    stop('Input data not numeric')
                   fac <- range(xi[,i])
                   if(fac[1]==fac[2]) next()
                   xi[,i] <- xi[,i] - min(xi[,i])

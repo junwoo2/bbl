@@ -4,7 +4,8 @@
 #' 
 #' Given numeric data matrix, either pseudo-likelihood
 #' of mean-field theory is used to find the maximum likelihood estimate
-#' of bias \code{h} and interaction \code{J} parameters.
+#' of bias \code{h} and interaction \code{J} parameters. Normally
+#' called by \code{\link{train}} rather than directly.
 #' 
 #' @param xi Data matrix. In contrast to \code{data} slot in \code{\link{bbl}}
 #'        object, this matrix is always numeric with elements ranging from 
@@ -13,11 +14,12 @@
 #'        \code{bbl} objects of \code{type = 'factors'}. 
 #' @param method \code{c('pseudo','mf')} for pseudo-likelihood maximization or
 #'        mean field inference.
-#' @param numeric Numeric model in which there is a single bias parameter
+#' @param type \code{'factors', 'numeric'}. Type of \code{bbl} model. 
+#'        If \code{'numeric'}, there is a single bias parameter
 #'        for each predictor and a single interaction parameter for each
 #'        distinct predictor pair. Elements of \code{xi} multipled by 
-#'        these parameters determine the probability. If \code{FALSE} (the
-#'        \code{'factors'} model), the numbers of parameters are one less than
+#'        these parameters determine the probability. If \code{'factors'} 
+#'        (default), the numbers of parameters are one less than
 #'        the number of factor levels and their products for bias and interaction,
 #'        respectively. 
 #' @param lambda Vector of L2 regularization parameters for 
@@ -27,7 +29,7 @@
 #'        taking mean values of the matrix and its trace:
 #'        \eqn{J_{ij}^{(y)}(x_1,x_2)=J_{ji}^{(y)}(x_2,x_1)}.
 #' @param eps Vector of regularization parameters for \code{mf}. Must be
-#'        within the range of \eqn{epsilon \in [0,1]}. Inferce will be 
+#'        within the range of \eqn{\epsilon \in [0,1]}. Inference will be 
 #'        repeated for each value of \code{eps}.
 #' @param nprint Frequency of printing iteration progress under \code{'pseudo'}.
 #' @param itmax Maximum number of iterations for \code{'pseudo'}.
@@ -39,7 +41,7 @@
 #' @param naive Naive Bayes inference. Equivalent to \code{method = 'mf'} together
 #'        with \code{eps = 0}.
 #' @return List of inferred parameters \code{h} and \code{J}. See 
-#'        \code{link{bbl}} for parameter structures.
+#'        \code{\link{bbl}} for parameter structures.
 #' @examples
 #' set.seed(535)
 #' predictors <- list()
@@ -60,15 +62,21 @@
 #' points(x=unlist(par$J), y=unlist(mf$J), col='green')
 #' @export
 
-mlestimate <- function(xi, method='pseudo', numeric=FALSE, lambda=0, 
+mlestimate <- function(xi, method='pseudo', type='factors', lambda=0, 
                        symmetrize=TRUE, eps=1, nprint=100, itmax=10000,
                        tolerance=1e-5, verbose=1, prior.count=TRUE,
                        naive=FALSE){
   
   m <- NCOL(xi)
   L <- apply(xi, 2, max)
+  numeric <- type=='numeric'
   if(numeric) Lp <- rep(1, NCOL(xi))
   else Lp <- L
+  
+  if(naive){
+    method <- 'mf'
+    eps <- 0
+  }
   
   if(method=='pseudo'){
     Lambda <- c(lambda)
@@ -77,10 +85,11 @@ mlestimate <- function(xi, method='pseudo', numeric=FALSE, lambda=0,
     Tol <- c(tolerance)
     Verbose <- c(verbose)
     Naive <- c(naive)
+    Numeric <- c(numeric)
     if(!is.numeric(xi[1,1])
        | min(xi)<0) stop('Input data to mlestimate must be numeric and non-negative')
     xi <- as.matrix(xi)
-    theta <- pseudo_mle(xi, numeric, Lambda, Nprint, Itmax, Tol, Naive, Verbose)
+    theta <- pseudo_mle(xi, Numeric, Lambda, Nprint, Itmax, Tol, Naive, Verbose)
     
     h <- theta$h
     J <- vector('list',m)
@@ -133,8 +142,8 @@ meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, prior.count=TRUE){
 
     if(prior.count){
       count0 <- NULL
-     for(i in seq_len(nvar)){
-       w <- Lp[id[i]]
+      for(i in seq_len(nvar)){
+        w <- Lp[id[i]]
         count0 <- c(count0, rep(1/(w+1),w))
       }
       m0 <- (count0 + colSums(csi))/(nsample+1)
@@ -244,13 +253,10 @@ meanfield <- function(xi, L, Lp, eps=1, numeric=FALSE, prior.count=TRUE){
 invav <- function(mx, L){
   
   f <- function(h, m, L){
-    up <- down <- 0
-    eh <- exp(h)
-    for(x in seq(0,L)){
-      ehx <- eh^x
-      up <- up + x*ehx
-      down <- down + ehx
-    }
+    x <- seq(0,L)
+    eh <- exp(h*x)
+    down <- sum(eh)
+    up <- sum(x*eh)
     m-up/down
   }
   

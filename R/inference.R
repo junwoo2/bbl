@@ -22,6 +22,21 @@
 #' model <- train(model, method='pseudo')
 #' model@h
 #' model@J[[1]]
+#' 
+#' #Numeric model
+#' set.seed(352)
+#' binary <- list()
+#' for(i in 1:5) binary[[i]] <- c(0,1)
+#' L <- c(2,2,3,3,4)
+#' par0 <- randompar(binary)
+#' xi0 <- sample_xi(nsample=n, type='numeric', L=L, h=par0$h, J=par0$J)
+#' par1 <- randompar(binary, h0=0.01, J0=0.01)
+#' xi1 <- sample_xi(nsample=n, type='numeric', L=L, h=par1$h, J=par1$J)
+#' xi <- rbind(xi0, xi1)
+#' dat <- cbind(xi, data.frame(y=c(rep('control',100),rep('case',100))))
+#' nmodel <- bbl(dat, type='numeric')
+#' nmodel <- train(nmodel, method='pseudo')
+#' head(cv)
 #' @export
 train <- function(object, method='pseudo', naive=FALSE, verbose=1, ...){
 
@@ -30,6 +45,9 @@ train <- function(object, method='pseudo', naive=FALSE, verbose=1, ...){
   Ly <- length(groups)
   if(Ly < 2) stop('No. of groups < 2')
   
+  if(naive)
+    method <- 'mf'
+
   data <- object@data
   xi <- data[,colnames(data)!=object@y]
   y <- data[,colnames(data)==object@y]
@@ -54,7 +72,7 @@ train <- function(object, method='pseudo', naive=FALSE, verbose=1, ...){
         xidi[,i] <- match(xid[,i],predictors[[i]])-1   
                                       # xidi = 0, ..., L-1
     }
-    mle <- mlestimate(xi=xidi, numeric=object@type=='numeric', 
+    mle <- mlestimate(xi=xidi, type=object@type, 
                       method=method, naive=naive, verbose=verbose-1, ...)
     if(verbose>0 & method=='pseudo') 
       cat('  Maximum pseudo-likelihood = ',mle$mle,'\n\n',sep='')

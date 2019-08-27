@@ -84,7 +84,7 @@ setMethod('predict', 'bbl',
   L <- NULL
   for(i in seq_len(m)){
     if(object@type=='numeric') 
-      L <- c(L, max(object@data[,i])+1)
+      L <- c(L, max(xi0[,i])+1)
     else
       L <- c(L, length(object@predictors[[i]]))
   }
@@ -182,8 +182,10 @@ setMethod('[', 'bbl', function(x,i,j, remove.const=TRUE){
   }
   if(remove.const)
     x <- bbl(data=data, type=type, groups=x@groups, y=x@y)
-  else
+  else if(type=='factors')
     x <- bbl(data=data, type=type, groups=x@groups, y=x@y, 
-             predictors=x@predictors) 
+             predictors=x@predictors)
+  else
+    x <- bbl(data=data, type=type, groups=x@groups, y=x@y)
   return(x)
 })

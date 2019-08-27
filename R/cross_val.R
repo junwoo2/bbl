@@ -4,10 +4,10 @@
 #' division of data
 #' 
 #' The \code{data} slot of \code{object} is split into training and validation 
-#' subsets of (\code{nfold}-1):\code{nfolde} ratio. The model is trained with the
-#' former and validated on the latter. Individual division fold results are 
+#' subsets of (\code{nfold}-1):1 ratio. The model is trained with the
+#' former and validated on the latter. Individual division/fold results are 
 #' combined into validation result for all instances in the data set and
-#' prediction score is evaluated in comparison to the known response group
+#' prediction score is evaluated using the known response group
 #' identity.
 #' 
 #' @param object Object of class \code{bbl} containing data.
@@ -32,16 +32,16 @@
 #' @examples
 #' set.seed(513)
 #' m <- 5
-#' n <- 1000
+#' n <- 500
 #' predictors <- list()
 #' for(i in 1:m) predictors[[i]] <- c('a','c','g','t')
-#' lambda <- 10^seq(-4,1,1)
+#' lambda <- 10^seq(-4,0,1)
 #' 
 #' par0 <- randompar(predictors)
 #' xi0 <- sample_xi(nsample=n, predictors=predictors, h=par0$h, J=par0$J)
-#' par1 <- randompar(predictors, h0=0.1, J=0.1)
+#' par1 <- randompar(predictors, h0=0.1, J0=0.1)
 #' xi1 <- sample_xi(nsample=n, predictors=predictors, h=par1$h, J=par1$J)
-#' xi <- rbind(xi0,xi1)
+#' xi <- rbind(xi0, xi1)
 #' dat <- cbind(xi, data.frame(y=c(rep('control',n),rep('case',n))))
 #' model <- bbl(data=dat, groups=c('control','case'))
 #' 
@@ -58,6 +58,11 @@ crossval <- function(object, lambda=0.1, eps=0.9, nfold=5, method='pseudo',
   y <- object@data[,which(object@y==colnames(object@data))]
   
   if(Ly!=2) use.auc <- FALSE
+  
+  if(naive){
+    method <- 'mf'
+    eps <- 0
+  }
   
   if(method=='pseudo') reglist <- lambda
   else if(method=='mf'){ 
