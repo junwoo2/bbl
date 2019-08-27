@@ -236,7 +236,7 @@ and
 
 Including an $L_2$ penalizer $\lambda$, $L_{iy}$ in Eq.~(\ref{eq:Ly2}) becomes
 \begin{equation}
-L_{iy}=\sum_{k\in y} \left[{\bar h}_i^{(y)}(x_i^k|x_{j\backslash i})-\ln Z_{iy}(x_{j\backslash i}^k)\right]
+L_{iy}=\sum_{k\in y} \left[{\bar h}_i^{(y)}(x_i^k|x_{j\backslash i})^k-\ln Z_{iy}(x_{j\backslash i}^k)\right]
 -\frac{\lambda}{2}\left[ \sum_x h_i^{(y)}(x)^2+\sum_{j,x<x^\prime} J_{ij}^{(y)}(x,x^\prime)^2\right]
 \label{eq:Liy}
 \end{equation}
@@ -254,7 +254,7 @@ P_i(x|y, x_{l\backslash i}^k)
 \end{eqnarray}
 \label{eq:partial}
 \end{subequations}
-where ${\hat f}_i^{(y)}(x)$ and ${\hat h}_{ij}^{(y)}(x,x^\prime)$ are the first and 
+\:\:where ${\hat f}_i^{(y)}(x)$ and ${\hat h}_{ij}^{(y)}(x,x^\prime)$ are the first and 
 second moments of predictor values and $\mathbbm{1}(x)$ is the indicator function.
 In \pkg{bbl}, Eqs.~(\ref{eq:partial}) are solved in \proglang{C++} functions using the quasi-Newton optimization function 
 \code{gsl_multimin_fdfminimizer_vector_bfgs2} in GNU Scientific Library 
