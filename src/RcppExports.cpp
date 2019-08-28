@@ -6,8 +6,8 @@
 using namespace Rcpp;
 
 // pseudo_mle
-List pseudo_mle(NumericMatrix xi, NumericVector Lambda, IntegerVector Nprint, IntegerVector Itmax, NumericVector Tol, LogicalVector Naive, IntegerVector Verbose);
-RcppExport SEXP _bbl_pseudo_mle(SEXP xiSEXP, SEXP LambdaSEXP, SEXP NprintSEXP, SEXP ItmaxSEXP, SEXP TolSEXP, SEXP NaiveSEXP, SEXP VerboseSEXP) {
+List pseudo_mle(NumericMatrix xi, NumericVector Lambda, IntegerVector Nprint, IntegerVector Itmax, NumericVector Tol, LogicalVector Naive, IntegerVector Verbose, LogicalVector Lzhalf);
+RcppExport SEXP _bbl_pseudo_mle(SEXP xiSEXP, SEXP LambdaSEXP, SEXP NprintSEXP, SEXP ItmaxSEXP, SEXP TolSEXP, SEXP NaiveSEXP, SEXP VerboseSEXP, SEXP LzhalfSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -18,7 +18,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< NumericVector >::type Tol(TolSEXP);
     Rcpp::traits::input_parameter< LogicalVector >::type Naive(NaiveSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type Verbose(VerboseSEXP);
-    rcpp_result_gen = Rcpp::wrap(pseudo_mle(xi, Lambda, Nprint, Itmax, Tol, Naive, Verbose));
+    Rcpp::traits::input_parameter< LogicalVector >::type Lzhalf(LzhalfSEXP);
+    rcpp_result_gen = Rcpp::wrap(pseudo_mle(xi, Lambda, Nprint, Itmax, Tol, Naive, Verbose, Lzhalf));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -41,7 +42,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_bbl_pseudo_mle", (DL_FUNC) &_bbl_pseudo_mle, 7},
+    {"_bbl_pseudo_mle", (DL_FUNC) &_bbl_pseudo_mle, 8},
     {"_bbl_predict_class", (DL_FUNC) &_bbl_predict_class, 7},
     {NULL, NULL, 0}
 };

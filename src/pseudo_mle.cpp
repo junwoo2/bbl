@@ -6,7 +6,7 @@ using namespace Rcpp;
 // [[Rcpp::export]]
 List pseudo_mle(NumericMatrix xi, NumericVector Lambda, IntegerVector Nprint, 
                 IntegerVector Itmax, NumericVector Tol,
-                LogicalVector Naive, IntegerVector Verbose){
+                LogicalVector Naive, IntegerVector Verbose, LogicalVector Lzhalf){
   
   int n = xi.nrow();
   int m = xi.ncol();
@@ -36,6 +36,7 @@ List pseudo_mle(NumericMatrix xi, NumericVector Lambda, IntegerVector Nprint,
   double tol = Tol[0];
   int verbose = Verbose[0];
   bool naive = Naive[0];
+  bool lzhalf = Lzhalf[0];
   
   double lkl = 0;
   double lz = 0;
@@ -44,7 +45,7 @@ List pseudo_mle(NumericMatrix xi, NumericVector Lambda, IntegerVector Nprint,
     bool failed=false;
     if(!bad[i0]){
       lkl += lpr_psl(i0, sv, L, lambda, h[i0], J[i0], nprint, Imax, tol,
-                   verbose, z, naive, failed);
+                   verbose, z, naive, failed, lzhalf);
       if(failed)
         Rcpp::Rcerr << " Warning: failed to converge in pseudo\n";
     }

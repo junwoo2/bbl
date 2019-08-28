@@ -55,8 +55,7 @@ enum <- function(si, L, i, h, J, e=NULL){
 #' xi <- sample_xi(nsample=n, predictors=predictors, h=par$h, J=par$J)
 #' head(xi)
 #' @export
-sample_xi <- function(nsample=1, type='factors', predictors=NULL,  
-                      h, J, code_out=FALSE){
+sample_xi <- function(nsample=1, predictors=NULL, h, J, code_out=FALSE){
 
   L <- NULL
   for(p in predictors) L <- c(L, length(p))

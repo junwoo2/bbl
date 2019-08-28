@@ -11,45 +11,62 @@
 
 using namespace std;
 
-void pan3(vector<double> &peff, int nsnp, int i0, 
+double pan3(vector<double> &peff, int nsnp, int i0, 
           const vector<short> &L, const vector<short> &ci, vector<double> h1, 
-          const vector<vector<double> > &J1, double &lz,
-          bool naive){
+          const vector<vector<double> > &J1, bool naive, bool lzhalf){
 
   peff.resize(L[i0]);
+  vector<double> peff2 = peff;
   for(int a=0;a<L[i0];a++){
     double e= h1[a];
+    double e2=e;
     if(!naive){
       for(int j=0;j< nsnp;j++){
         if(j==i0) continue;
         int b=ci[j];
         if(b==0) continue;
         e+= J1[j][L[j]*a+b-1];
+        if(lzhalf) e2+= J1[j][L[j]*a+b-1]/2.0;
       }
     }
     peff[a]=e;
+    if(lzhalf) peff2[a]=e2;
   }
   double max=0;
-  for(int a=0;a<L[i0];a++)
+  double max2=0;
+  for(int a=0;a<L[i0];a++){
     if(peff[a]>max) max=peff[a];
+    if(lzhalf && (peff2[a] > max2)) max2=peff2[a];
+  }
   double z = exp(-max);
+  double z2= exp(-max2);
   for(int a=0;a<L[i0];a++){
     peff[a] = exp(peff[a]-max);
     z+=peff[a];
+    if(lzhalf){
+      peff2[a] = exp(peff2[a]-max2);
+      z2+=peff2[a];
+    }
   }
-  for(int a=0;a<L[i0];a++)
+  for(int a=0;a<L[i0];a++){
     peff[a]/=z;
+    if(lzhalf) peff2[a]/=z2;
+  }
   
-  lz = log(z)+max;
+  double lz=0;
+  if(lzhalf) lz += log(z2)+max2;
+  else lz += log(z)+max;
+  
+  return lz;
 }
 
 double pan2(int nsnp, int i0, const vector<short> &L, 
             const vector<short> &ci, 
             const vector<double> &h1, const vector<vector<double> > &J1, 
-            double &lz, bool naive){
+            double &lz, bool naive, bool lzhalf){
 
   vector<double> peff(L[i0]);
-  pan3(peff, nsnp, i0, L, ci, h1, J1, lz, naive);
+  lz = pan3(peff, nsnp, i0, L, ci, h1, J1, naive, lzhalf);
 
   int a0=ci[i0];
   if(a0>0)
@@ -91,7 +108,7 @@ double lnl_psl(const gsl_vector *v,void *params){  // evaluates log likelihood
   par->lzp = 0;
   for(int n=0;n<nind;n++){
     double lz=0;
-    double p=pan2(nsnp,i0,L,(par->ai)[n],h1,J1,lz, par->naive);
+    double p=pan2(nsnp,i0,L,(par->ai)[n],h1,J1,lz, par->naive, par->lzhalf);
     ln += -log(p);
     par->lzp += lz;
   }
@@ -200,7 +217,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
                const vector<short> &L, double lambda, 
                vector<double> &h, vector<vector<double> > &J, int nprint, 
                unsigned int Imax, double Tol, int verbose, double &lz, 
-               bool naive, bool &failed){
+               bool naive, bool &failed, bool &lzhalf){
 
   size_t iter=0;
   int status;
@@ -233,7 +250,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   T=gsl_multimin_fdfminimizer_vector_bfgs2;  // BFGS2 optimizer
   s=gsl_multimin_fdfminimizer_alloc(T,ndim);
 
-  Param par={i0, ai, L, lambda, f1, f2, lz, naive};
+  Param par={i0, ai, L, lambda, f1, f2, lz, naive, lzhalf};
 
   my_func.params=&par;
   gsl_vector_set_zero(x);  // initial guess
@@ -243,7 +260,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   do{
       iter++;
       status=gsl_multimin_fdfminimizer_iterate(s);
-      if(iter%nprint==0 & verbose>1)
+      if(iter%nprint==0 && verbose>1)
         Rcpp::Rcout << "  iteration # " << iter << ": " << s->f << endl;
       if(status){
         Rcpp::Rcerr << " GSL status code " << status << endl;

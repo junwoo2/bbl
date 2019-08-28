@@ -32,6 +32,8 @@
 #'        numerical instability.
 #' @param naive Naive Bayes inference. Equivalent to \code{method = 'mf'} together
 #'        with \code{eps = 0}.
+#' @param lz.half Divide interaction term in approximation to \eqn{\ln Z_{iy}}
+#'        in \code{pseudo}.
 #' @return List of inferred parameters \code{h} and \code{J}. See 
 #'        \code{\link{bbl}} for parameter structures.
 #' @examples
@@ -57,7 +59,7 @@
 mlestimate <- function(xi, method='pseudo', lambda=0, 
                        symmetrize=TRUE, eps=1, nprint=100, itmax=10000,
                        tolerance=1e-5, verbose=1, prior.count=TRUE,
-                       naive=FALSE){
+                       naive=FALSE, lz.half=FALSE){
   
   m <- NCOL(xi)
   L <- apply(xi, 2, max)
@@ -74,10 +76,11 @@ mlestimate <- function(xi, method='pseudo', lambda=0,
     Tol <- c(tolerance)
     Verbose <- c(verbose)
     Naive <- c(naive)
+    Lzhalf <- c(lz.half)
     if(!is.numeric(xi[1,1])
        | min(xi)<0) stop('Input data to mlestimate must be numeric and non-negative')
     xi <- as.matrix(xi)
-    theta <- pseudo_mle(xi, Lambda, Nprint, Itmax, Tol, Naive, Verbose)
+    theta <- pseudo_mle(xi, Lambda, Nprint, Itmax, Tol, Naive, Verbose, Lzhalf)
     
     h <- theta$h
     J <- vector('list',m)
@@ -224,8 +227,7 @@ meanfield <- function(xi, L, eps=1, prior.count=TRUE){
     Lsi <- Lsi + L[i]
   }
   
-  lz <- Zeff(L=L, bad=bad, m=nsite, h=h, J=J, xi=xi, mf=TRUE, 
-             naive=(eps==0))  # log partition function
+  lz <- Zeff(L=L, bad=bad, m=nsite, h=h, J=J, xi=xi, naive=(eps==0))  # log partition function
   
   return(list(h=h, J=J, lz=lz))
 }
@@ -253,62 +255,37 @@ invav <- function(mx, L){
 }
 
 # Pseudo partition function using data xi
-Zeff <- function(L, bad, m, h, J, xi, mf=mf, naive){
+Zeff <- function(L, bad, m, h, J, xi, naive){
   
   nsample <- NROW(xi)
-  if(mf){
-    fi <- vector('list',m)
-    f0 <- rep(1, m)
-    for(i in seq_len(m)){
-      if(bad[i]) next()
-      if(L[i]<1){
-        fi[[i]] <- 0
-        f0[i] <- 1
-      } else{
-        fi[[i]] <- rep(1/(L[i]+1), L[i])
-        for(l in seq_len(L[i]))
-          fi[[i]][l] <- fi[[i]][l] + sum(xi[,i]==l)
-        fi[[i]] <- fi[[i]]/(nsample+1)
-        f0[i] <- 1 - sum(fi[[i]])
-      }
-    }
-    lz <- - sum(log(f0))
-    if(naive) return(lz)
-    for(i in seq(1,m-1)){
-      if(bad[i]) next()
-      for(j in seq(i+1,m)){
-        if(bad[j]) next()
-        for(l0 in seq_len(L[i])) for(l1 in seq_len(L[j])){
-          if(NROW(J[[i]][[j]])<l0 |
-             NCOL(J[[i]][[j]])<l1) next()
-          dz <- J[[i]][[j]][l0,l1]*fi[[i]][l0]*fi[[j]][l1]
-          lz <- lz - dz
-        }
-      }
-    }
-    return(lz)
-  }
-  
-  lz <- 0
-  for(k in seq_len(nsample)) for(i in seq_len(m)){
+  fi <- vector('list',m)
+  f0 <- rep(1, m)
+  for(i in seq_len(m)){
     if(bad[i]) next()
-    z <- 1
-    for(a in seq(1, L[i])){
-      if(length(h[[i]]) < a) next()
-      e <- h[[i]][a]
-      if(naive) next()
-      for(j in seq(1,m)){
-        if(j==i) next()
-        xj <- xi[k,j]
-        if(xj==0) next()
-        if(NROW(J[[i]][[j]])<a | NCOL(J[[i]][[j]])<xj) next()
-        e <- e + J[[i]][[j]][a,xj]/2
-      }
-      z <- z + exp(e)
+    if(L[i]<1){
+      fi[[i]] <- 0
+      f0[i] <- 1
+    } else{
+      fi[[i]] <- rep(1/(L[i]+1), L[i])
+      for(l in seq_len(L[i]))
+        fi[[i]][l] <- fi[[i]][l] + sum(xi[,i]==l)
+      fi[[i]] <- fi[[i]]/(nsample+1)
+      f0[i] <- 1 - sum(fi[[i]])
     }
-    lz <- lz + log(z)
   }
-  lz <- lz/nsample
-  
+  lz <- - sum(log(f0))
+  if(naive) return(lz)
+  for(i in seq(1,m-1)){
+    if(bad[i]) next()
+    for(j in seq(i+1,m)){
+      if(bad[j]) next()
+      for(l0 in seq_len(L[i])) for(l1 in seq_len(L[j])){
+        if(NROW(J[[i]][[j]])<l0 | NCOL(J[[i]][[j]])<l1) next()
+        dz <- J[[i]][[j]][l0,l1]*fi[[i]][l0]*fi[[j]][l1]
+        lz <- lz - dz
+      }
+    }
+  }
+
   return(lz)
 }

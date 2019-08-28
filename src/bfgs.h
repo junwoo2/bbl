@@ -9,15 +9,16 @@ struct Param{
   const std::vector<std::vector<double> > &f2;
   double &lzp;
   bool naive;
+  bool &lzhalf;
 };
 
 void f12(int i0, const std::vector<std::vector<short> > &si, 
          std::vector<double> &f1, std::vector<std::vector<double> > &f2, 
          const std::vector<short> &L, bool naive);
 
-void pan3(std::vector<double> &peff, int nsnp, int i0, 
+double pan3(std::vector<double> &peff, int nsnp, int i0, 
           const std::vector<short> &L, const std::vector<short> &ci, 
-          std::vector<double> h1, const std::vector<std::vector<double> > &J1, double &lzp,
+          std::vector<double> h1, const std::vector<std::vector<double> > &J1,
           bool naive);
 
 double lnl_psl(const gsl_vector *v, void *params);
@@ -31,7 +32,7 @@ double lpr_psl(int i0, const std::vector<std::vector<short> > &si,
     double lambda, std::vector<double> &h, 
     std::vector<std::vector<double> > &J, int nprint,
     unsigned int imax, double tol, int verbose, double &lzp, 
-    bool naive, bool &failed);
+    bool naive, bool &failed, bool &lzhalf);
 
 double pan2(int nsnp, int i0, int L, const std::vector<short> &ci, 
     const std::vector<double> &h1, const std::vector<std::vector<double> > &J1,

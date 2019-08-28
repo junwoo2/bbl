@@ -136,7 +136,7 @@ and mean field theory \citep{chandler,nguyen_etal}.
 A recently described package \pkg{BoltzMM} can fit the (`fully visible') Boltzmann machine given by 
 Eq.~(\ref{eq:boltzmann}) to data using pseudo-likelihood inference \citep{BoltzMM,jones_etal}. 
 In contrast, classifiers based on this class of models remain largely unexplored. Supervised learners using 
-statistical models of the type (\ref{eq:boltzmann}) usually takes the form 
+statistical models of the type (\ref{eq:boltzmann}) usually take the form 
 of the {\it restricted} Boltzmann machines instead \citep{hinton}, 
 where (visible) predictors are augmented by hidden units and interactions 
 are zero except between visible and hidden units. 
@@ -236,8 +236,8 @@ and
 
 Including an $L_2$ penalizer $\lambda$, $L_{iy}$ in Eq.~(\ref{eq:Ly2}) becomes
 \begin{equation}
-L_{iy}=\sum_{k\in y} \left[{\bar h}_i^{(y)}(x_i^k|x_{j\backslash i})^k-\ln Z_{iy}(x_{j\backslash i}^k)\right]
--\frac{\lambda}{2}\left[ \sum_x h_i^{(y)}(x)^2+\sum_{j,x<x^\prime} J_{ij}^{(y)}(x,x^\prime)^2\right]
+L_{iy}=\sum_{k\in y} \left[{\bar h}_i^{(y)}(x_i^k|x_{j\backslash i}^k)-\ln Z_{iy}(x_{j\backslash i}^k)\right]
+-\frac{\lambda}{2}\left[ \sum_x h_i^{(y)}(x)^2+\sum_{j,x,x^\prime} J_{ij}^{(y)}(x,x^\prime)^2\right]
 \label{eq:Liy}
 \end{equation}
 with first derivatives
@@ -254,7 +254,7 @@ P_i(x|y, x_{l\backslash i}^k)
 \end{eqnarray}
 \label{eq:partial}
 \end{subequations}
-\:\:where ${\hat f}_i^{(y)}(x)$ and ${\hat h}_{ij}^{(y)}(x,x^\prime)$ are the first and 
+\!\!where ${\hat f}_i^{(y)}(x)$ and ${\hat h}_{ij}^{(y)}(x,x^\prime)$ are the first and 
 second moments of predictor values and $\mathbbm{1}(x)$ is the indicator function.
 In \pkg{bbl}, Eqs.~(\ref{eq:partial}) are solved in \proglang{C++} functions using the quasi-Newton optimization function 
 \code{gsl_multimin_fdfminimizer_vector_bfgs2} in GNU Scientific Library 
@@ -348,20 +348,21 @@ Therefore, if $J_{ij}^{(y)}(x,x^\prime)=0$ (naive Bayes), Eq.~(\ref{eq:py}) take
 the logistic regression formula. However, the actual naive Bayes parameter values differ from logistic regression fit.
 No expression for $P(y|{\bf x})$ simpler than Eq.~(\ref{eq:py}) exists for data with more than two groups.
 
-Two options for computing $Z_y$ are either
+In pseudo-likelihood maximization inference, $Z_y$ can be approximated by
 \begin{equation}
 \ln Z_y = \frac{1}{n_y}\sum_{k\in y}\sum_i 
 \ln \left\{\sum_x \left[e^{h_i^{(y)}(x)+\sum_{j\ne i}J_{ij}(x,x_j^k)/2}\right]\right\},
 \label{eq:lnz1}
 \end{equation}
-or 
+or with the same expression without the factor of $1/2$ in the interaction 
+term in the exponent (default). This quantity can be conveniently computed 
+during the optimization process. With the mean field option, the following 
+expression is used:
 \begin{equation}
 \ln Z_y = -\ln {\hat f}^{(y)}(0) - \frac{1}{2}\sum_{i\ne j} \sum_{x,x^\prime}J_{ij}(x,x^\prime) {\hat f}_i(x)
-{\hat f}_j(x^\prime),
+{\hat f}_j(x^\prime).
 \label{eq:lnzy}
 \end{equation}
-which arises from the mean field theory. Equation~(\ref{eq:lnzy}) (option \code{mf = TRUE} in \pkg{bbl})
-is faster than (\ref{eq:lnz1}) and is preferable for large $n$.
 
 For a test data set for which the actual group identity $y_k$ of data 
 instances are known, the prediction score (accuracy) may be defined as
@@ -510,8 +511,8 @@ based on the distribution (\ref{eq:pxy}). The total number of states here is $L^
 exhaustive enumeration. However, this is possible only for small $m$ and $L$.
 If either are even moderately larger, \code{sample_xi} will hang.
 
-Because there is only one response group, we call the main driver \code{mlestimate} of \pkg{bbl} inference 
-directly instead of \code{train}:
+Because there is only one response group, we call the main engine 
+\code{mlestimate} of \pkg{bbl} inference directly instead of \code{train}:
 %
 <<mle>>=
 fit <- mlestimate(xi=xi, method='pseudo',lambda=0)
@@ -521,7 +522,7 @@ names(fit)
 In contrast to \code{train}, which is designed for use with \code{bbl}
 object with multiple response groups and predictors in factors,
 \code{mlestimate} is for a single group and requires input matrix 
-\code{xi} whose elements are integral codes of factors: $a_i=0,\cdots,L_i=1$.
+\code{xi} whose elements are integral codes of factors: $a_i=0,\cdots,L_i-1$.
 
 Figure~\ref{fig:par} compares the true and inferred parameters. Here, the
 sample size was large enough that no regularization was necessary.
@@ -666,7 +667,8 @@ the profile shown in Fig.~\ref{fig:mnist} (white symbols). The substantial jump 
 performance under $\epsilon^*\sim 0.1$ over $\epsilon \rightarrow 0$ (naive Bayes) limit 
 gives a measure of interaction effects.
 The relatively small value of $\epsilon^*$ at the optimal condition,
-compared to e.g. Fig.~\ref{fig:mfcv}{\bf a}, reflects the sparseness of image data. 
+compared to e.g., Fig.~\ref{fig:mfcv}{\bf a}, reflects the sparseness of image 
+data. 
 
 We now retrain the model without cross-validation under $\epsilon^*$ and classify test set 
 (also down-sampled to $n=500$) images:
@@ -685,9 +687,10 @@ Note the slight increase in test score compared to cross-validation score becaus
 training data. Set \code{progress.bar = TRUE} to monitor the progress in a slow \code{predict} run.
 
 We performed similar cross-validation and test analyses of the full MNIST data 
-(training $n=60,\!000$ and test $n=10,\!000$; Fig.~\ref{fig:mnist}; red symbols) and obtained the test 
-score of $0.932$ (classification error rate $6.8\%$), which compares favorably with some of the
-best-performing large-scale neural network algorithms 
+(training $n=60,\!000$ and test $n=10,\!000$; Fig.~\ref{fig:mnist}, red symbols) 
+and obtained the test 
+score of $0.932$ (classification error rate $6.8\%$), which compares favorably 
+with some of the best-performing large-scale neural network algorithms 
 \citep{lecun_etal,salakhutdinov_hinton} (Table.~\ref{tb:mnist}).
 
 \begin{table}[t!]
@@ -814,7 +817,7 @@ moderate number of unordered features (such as nucleotide sequences) combine to 
 (\code{method = `mf'}) is faster but can become memory intensive for models 
 with a large number of predictors. Pseudo-likelihood maximization 
 (\code{method = 'pseudo'}) is slower but generally performs better
-(Fig.~\ref{fig:jaspar}{\bf b}).
+(Fig.~\ref{fig:tfbs}{\bf b}).
 
 %% -- Optional special unnumbered sections -------------------------------------
 
