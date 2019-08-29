@@ -702,7 +702,7 @@ Linear classifier   & 1-layer NN       & $12.0$        & \cite{lecun_etal}\\
 K-nearest neighbors & Euclidean (L2)   & $5.0$         & \cite{lecun_etal}\\
 2-layer NN          & 300 hidden units & $4.7$         & \cite{lecun_etal}\\
 RBM                 & 2-layer          & $0.95$        & \cite{salakhutdinov_hinton}\\
-Naive Bayes         & Mean field ($\epsilon=0$) & $30.8$ &  \pkg{bbl}                 \\
+Naive Bayes         & Mean field ($\epsilon=0$) & $16.2$ &  \pkg{bbl}                 \\
 BB                  & Mean field ($\epsilon=0.05$)      & $6.8$         &    \pkg{bbl}               \\
 \hline
 \end{tabular}

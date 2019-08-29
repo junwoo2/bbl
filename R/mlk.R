@@ -34,6 +34,7 @@
 #'        with \code{eps = 0}.
 #' @param lz.half Divide interaction term in approximation to \eqn{\ln Z_{iy}}
 #'        in \code{pseudo}.
+#' @param use.mfC Matrix inversion in \code{method = 'mf'} uses \code{C++}.
 #' @return List of inferred parameters \code{h} and \code{J}. See 
 #'        \code{\link{bbl}} for parameter structures.
 #' @examples
@@ -57,9 +58,9 @@
 #' @export
 
 mlestimate <- function(xi, method='pseudo', lambda=0, 
-                       symmetrize=TRUE, eps=1, nprint=100, itmax=10000,
+                       symmetrize=TRUE, eps=0.9, nprint=100, itmax=10000,
                        tolerance=1e-5, verbose=1, prior.count=TRUE,
-                       naive=FALSE, lz.half=FALSE){
+                       naive=FALSE, lz.half=FALSE, use.mfC=TRUE){
   
   m <- NCOL(xi)
   L <- apply(xi, 2, max)
@@ -69,45 +70,54 @@ mlestimate <- function(xi, method='pseudo', lambda=0,
     eps <- 0
   }
   
+  if(method=='mf'){
+    if(!use.mfC | naive){
+      theta <- meanfield(xi=xi, L=L, eps=eps, prior.count=prior.count)
+      return(list(h=theta$h, J=theta$J, lz=theta$lz))
+    }
+  }
+  xi <- as.matrix(xi)
+  if(!is.numeric(xi[1,1])
+     | min(xi)<0) stop('Input data to mlestimate must be numeric and non-negative')
+  
   if(method=='pseudo'){
     Lambda <- c(lambda)
     Nprint <- c(nprint)
     Itmax <- c(itmax)
     Tol <- c(tolerance)
     Verbose <- c(verbose)
-    Naive <- c(naive)
     Lzhalf <- c(lz.half)
-    if(!is.numeric(xi[1,1])
-       | min(xi)<0) stop('Input data to mlestimate must be numeric and non-negative')
-    xi <- as.matrix(xi)
+    Naive <- c(naive)
     theta <- pseudo_mle(xi, Lambda, Nprint, Itmax, Tol, Naive, Verbose, Lzhalf)
-    
-    h <- theta$h
-    J <- vector('list',m)
-    for(i in seq_len(m)) J[[i]] <- vector('list',m)
-    for(i in seq(1,m)){ 
-      for(j in seq(i,m)){
-        x <- matrix(theta$J[[i]][[j]], nrow=L[i], ncol=L[j], byrow=TRUE)
-        xt <- matrix(theta$J[[j]][[i]], nrow=L[j], ncol=L[i], byrow=TRUE)
-        if(i<j & symmetrize){ 
-          x <- (x + t(xt))/2
-          xt <- t(x)
-        }
-        J[[i]][[j]] <- x
-        J[[j]][[i]] <- xt
-      }
-    }
-    return(list(h=h, J=J, mle=theta$lkl, lz=theta$lz))
   }
   else if(method=='mf'){
-    theta <- meanfield(xi=xi, L=L, eps=eps, prior.count=prior.count)
-    return(list(h=theta$h, J=theta$J, lz=theta$lz))
-  } else stop('unknown method in mlestimate')
+    Eps <- c(eps)
+    theta <- mfwrapper(xi, Eps);
+  }
+  else stop('unknown method in mlestimate')
+
+  h <- theta$h
+  J <- vector('list',m)
+  for(i in seq_len(m)) J[[i]] <- vector('list',m)
+  for(i in seq(1,m)){ 
+    for(j in seq(i,m)){
+      x <- matrix(theta$J[[i]][[j]], nrow=L[i], ncol=L[j], byrow=TRUE)
+      xt <- matrix(theta$J[[j]][[i]], nrow=L[j], ncol=L[i], byrow=TRUE)
+      if(i<j & symmetrize){ 
+        x <- (x + t(xt))/2
+        xt <- t(x)
+      }
+      J[[i]][[j]] <- x
+      J[[j]][[i]] <- xt
+    }
+  }
+
+  return(list(h=h, J=J, mle=theta$lkl, lz=theta$lz))
 
 }
 
 # Mean field inference
-meanfield <- function(xi, L, eps=1, prior.count=TRUE){
+meanfield <- function(xi, L, eps=0.9, prior.count=TRUE){
 
   nsite <- ncol(xi)
   nsample <- nrow(xi)
@@ -146,11 +156,12 @@ meanfield <- function(xi, L, eps=1, prior.count=TRUE){
     }
     csi <- csi - matrix(m0, nrow=nsample, ncol=Ls, byrow=TRUE)
     if(prior.count){
-      csi <- csi + matrix(count0/nsample, nrow=nsample, ncol=NCOL(csi), byrow=TRUE)
+      csi <- csi + matrix(count0/nsample, nrow=nsample, ncol=NCOL(csi), 
+                          byrow=TRUE)
       cij <- t(csi) %*% csi / (nsample + 1)
     }
     else
-      cis <- t(csi) %*% csi / nsample
+      cij <- t(csi) %*% csi / nsample
   
     cijb <- eps*cij + (1-eps)*mean(diag(cij))*diag(1,nrow=NROW(cij))
     Jij <- solve(a=cijb, b=diag(-1, nrow=sum(L[!bad])))
@@ -230,28 +241,6 @@ meanfield <- function(xi, L, eps=1, prior.count=TRUE){
   lz <- Zeff(L=L, bad=bad, m=nsite, h=h, J=J, xi=xi, naive=(eps==0))  # log partition function
   
   return(list(h=h, J=J, lz=lz))
-}
-
-# Inverse function of mean single-site average mi
-
-invav <- function(mx, L){
-  
-  f <- function(h, m, L){
-    x <- seq(0,L)
-    eh <- exp(h*x)
-    down <- sum(eh)
-    up <- sum(x*eh)
-    m-up/down
-  }
-  
-  zm <- NULL
-  for(m in mx){
-    if(m==0) hi <- -Inf
-    else if(m==L) hi <- Inf
-    else hi <- stats::uniroot(f, interval=c(-10,10), m=m, L=L)$root
-    zm <- c(zm, hi)
-  }
-  return(zm)
 }
 
 # Pseudo partition function using data xi

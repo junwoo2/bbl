@@ -227,7 +227,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   vector<double> f1(nsnp);
   vector<vector<double> > f2(nsnp);
 
-  f12(i0, ai, f1, f2, L, naive);
+  f12(i0, ai, f1, f2, L, naive, false);
 
   const gsl_multimin_fdfminimizer_type *T;
   gsl_multimin_fdfminimizer *s;
@@ -299,21 +299,30 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
 
 
 void f12(int i0, const vector<vector<short> > &si, vector<double> &f1,
-         vector<vector<double> > &f2, const vector<short> &L, bool naive){
+         vector<vector<double> > &f2, const vector<short> &L, bool naive,
+         bool pcount){
 
   int n = si.size();
   int m = si[0].size();
   f1.resize(L[i0]);
   f2.resize(m);
 
-  for(int l=0; l<L[i0]; l++) f1[l]=0; 
+  for(int l=0; l<L[i0]; l++){
+    f1[l]=0;
+    if(pcount) f1[l] += 1.0/(1+L[i0]);
+  }
   if(!naive){
     for(int i=0; i<m; i++){
       f2[i].resize(L[i0]*L[i]);
-      for(int l0=0; l0<L[i0]; l0++) for(int l1=0; l1<L[i]; l1++)
-        f2[i][L[i]*l0+l1]=0;
+      for(int l0=0; l0<L[i0]; l0++) for(int l1=0; l1<L[i]; l1++){
+        int id = L[i]*l0+l1;
+        f2[i][id]=0;
+        if(pcount)
+          f2[i][id] += (i==i0 ? 1.0/(L[i0]+1) : 1.0/(L[i0]+1)/(L[i]+1));
+      }
     }
   }
+  
   for(int k=0; k<n; k++){
     short a=si[k][i0];
     if(a==0) continue;
@@ -326,8 +335,9 @@ void f12(int i0, const vector<vector<short> > &si, vector<double> &f1,
       f2[j][L[j]*(a-1)+b-1]++;
     }
   }
+  int nc = pcount ? n+1 : n;
   for(int l0=0; l0<L[i0]; l0++){ 
-    f1[l0]/=n;
+    f1[l0]/=nc;
     if(naive) continue;
     for(int j=0; j<m; j++){
       if(i0==j){
@@ -340,7 +350,7 @@ void f12(int i0, const vector<vector<short> > &si, vector<double> &f1,
       }
       else{
         for(int l1=0; l1<L[j]; l1++)
-          f2[j][L[j]*l0+l1]/=n;
+          f2[j][L[j]*l0+l1]/=nc;
       }
     }
   }
