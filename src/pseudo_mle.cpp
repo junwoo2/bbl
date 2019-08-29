@@ -10,21 +10,39 @@ List pseudo_mle(NumericMatrix xi, NumericVector Lambda, IntegerVector Nprint,
   
   int n = xi.nrow();
   int m = xi.ncol();
-  std::vector<std::vector<short> > sv(n);
-  for(int i=0; i<n; i++) for(int j=0; j<m; j++)
-    sv[i].push_back(xi(i,j));
   std::vector<short> L(m);
+  std::vector<std::vector<short> > sv(n);
+  for(int k=0; k<n; k++) for(int i=0; i<m; i++)
+    sv[k].push_back(xi(k,i));
+  
+  int nbad=0;
   std::vector<bool> bad(m);
   for(int i=0; i<m; i++){
-    short xmin=0;
-    short xmax=0;
-    for(int k=0; k<n; k++){ 
+    short xmin=xi(0,i);
+    short xmax=xi(0,i);
+    for(int k=1; k<n; k++){ 
       if(xmax<xi(k,i)) xmax=xi(k,i);
       if(xmin>xi(k,i)) xmin=xi(k,i);
     }
-    L[i]=xmax;
-    if(xmax==xmin) bad[i]=true;
+    if(xmax==xmin){ 
+      bad[i]=true;
+      nbad++;
+    }
     else bad[i]=false;
+    L[i]=xmax;
+  }
+  if(nbad>0){
+    std::vector<short> v(m);
+    for(int i=0; i<m; i++){      // add an extra instance to regularize
+      if(!bad[i]) v[i]=0;
+      else if(L[i]>0) v[i]=0;
+      else{
+        v[i]=1;
+        L[i]=1;
+      }
+    }
+    sv.push_back(v);
+    n++;
   }
   
   std::vector<std::vector<double> > h(m);
@@ -43,17 +61,10 @@ List pseudo_mle(NumericMatrix xi, NumericVector Lambda, IntegerVector Nprint,
   for(int i0=0; i0<m; i0++){
     double z=0;
     bool failed=false;
-    if(!bad[i0]){
-      lkl += lpr_psl(i0, sv, L, lambda, h[i0], J[i0], nprint, Imax, tol,
+    lkl += lpr_psl(i0, sv, L, lambda, h[i0], J[i0], nprint, Imax, tol,
                    verbose, z, naive, failed, lzhalf);
-      if(failed)
-        Rcpp::Rcerr << " Warning: failed to converge in pseudo\n";
-    }
-    else{
-      h[i0].push_back(0);
-      J[i0].resize(m);
-      for(int j=0;j<m;j++) J[i0][j].push_back(0);
-    }
+    if(failed)
+      Rcpp::Rcerr << " Warning: failed to converge in pseudo\n";
     lz += z;
     Rcpp::checkUserInterrupt();
   }
