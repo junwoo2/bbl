@@ -9,14 +9,20 @@
 #' 
 #' @param xi Data matrix. In contrast to \code{data} slot in \code{\link{bbl}}
 #'        object, this matrix is always numeric with elements ranging from 
-#'        zero to positive integral upper bound. \code{\link{train}} does
+#'        zero to positive integral upper bound \code{L-1}. 
+#'        \code{\link{train}} does
 #'        the transformation from factors to this numeric matrix for
 #'        \code{bbl} objects. 
 #' @param method \code{c('pseudo','mf')} for pseudo-likelihood maximization or
 #'        mean field inference.
+#' @param L Vector of number of factor levels in each predictor. If
+#'        \code{NULL}, will be inferred from \code{xi}.
 #' @param lambda Vector of L2 regularization parameters for 
 #'        \code{method = 'pseudo'}. Inference will be repeated for each value 
-#'        of \code{lambda}.
+#'        of \code{lambda}. Applies to interaction parameters \code{J}.
+#' @param lambdah L2 parameters for \code{h} in \code{'pseudo'}.
+#'         If \code{NULL}, it is set equal to \code{lambda}.
+#'         \code{lambdah = 0} will free \code{h} from penalization.
 #' @param symmetrize Enforce the symmetry of interaction parameters by
 #'        taking mean values of the matrix and its trace:
 #'        \eqn{J_{ij}^{(y)}(x_1,x_2)=J_{ji}^{(y)}(x_2,x_1)}.
@@ -33,7 +39,7 @@
 #' @param naive Naive Bayes inference. Equivalent to \code{method = 'mf'} together
 #'        with \code{eps = 0}.
 #' @param lz.half Divide interaction term in approximation to \eqn{\ln Z_{iy}}
-#'        in \code{pseudo}.
+#'        in \code{'pseudo'}.
 #' @param use.mfC Matrix inversion in \code{method = 'mf'} uses \code{C++}.
 #' @return List of inferred parameters \code{h} and \code{J}. See 
 #'        \code{\link{bbl}} for parameter structures.
@@ -57,13 +63,24 @@
 #' points(x=unlist(par$J), y=unlist(mf$J), col='green')
 #' @export
 
-mlestimate <- function(xi, method='pseudo', lambda=0, 
-                       symmetrize=TRUE, eps=0.9, nprint=100, itmax=10000,
+mlestimate <- function(xi, method='pseudo', L=NULL, lambda=0.1,
+                       lambdah=0, symmetrize=TRUE, eps=0.9, 
+                       nprint=100, itmax=10000,
                        tolerance=1e-5, verbose=1, prior.count=TRUE,
                        naive=FALSE, lz.half=FALSE, use.mfC=TRUE){
   
+  if(is.null(lambdah))
+    lambdah <- lambda
+  
   m <- NCOL(xi)
-  L <- apply(xi, 2, max)
+  La <- apply(xi, 2, max)
+  if(is.null(L))
+    L <- La
+  else{ 
+    if(!all(L >= La)) 
+      stop('Data provided have predictor levels exceeding L')
+    L <- L-1
+  }
   
   if(naive){
     method <- 'mf'
@@ -81,18 +98,19 @@ mlestimate <- function(xi, method='pseudo', lambda=0,
      | min(xi)<0) stop('Input data to mlestimate must be numeric and non-negative')
   
   if(method=='pseudo'){
-    Lambda <- c(lambda)
+    Lambda <- c(lambda, lambdah)
     Nprint <- c(nprint)
     Itmax <- c(itmax)
     Tol <- c(tolerance)
     Verbose <- c(verbose)
     Lzhalf <- c(lz.half)
     Naive <- c(naive)
-    theta <- pseudo_mle(xi, Lambda, Nprint, Itmax, Tol, Naive, Verbose, Lzhalf)
+    theta <- pseudo_mle(xi, L, Lambda, Nprint, Itmax, Tol, Naive, 
+                        Verbose, Lzhalf)
   }
   else if(method=='mf'){
     Eps <- c(eps)
-    theta <- mfwrapper(xi, Eps);
+    theta <- mfwrapper(xi, L, Eps)
   }
   else stop('unknown method in mlestimate')
 
@@ -159,7 +177,7 @@ meanfield <- function(xi, L, eps=0.9, prior.count=TRUE){
       cij <- t(csi) %*% csi / nsample
   
     cijb <- eps*cij + (1-eps)*mean(diag(cij))*diag(1,nrow=NROW(cij))
-    Jij <- solve(a=cijb, b=diag(-1, nrow=sum(L[!bad])))
+    Jij <- solve(a=cijb, b=diag(-1, nrow=sum(L)))
   } else{
     mi <- vector('list',nvar)
     for(i in seq_len(nvar)){
@@ -189,7 +207,7 @@ meanfield <- function(xi, L, eps=0.9, prior.count=TRUE){
         Lsj <- 0
         for(j in seq_len(nvar)){
           if(i!=j){
-            mx <- mi[[which(id==j)]]
+            mx <- mi[[j]]
             for(q in seq_len(L[j]))
               h[[i]][l] <- h[[i]][l] - Jij[Lsi+l, Lsj+q]*mx[q]
           }

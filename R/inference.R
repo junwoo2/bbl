@@ -48,10 +48,14 @@ train <- function(object, method='pseudo', naive=FALSE, verbose=1, ...){
     if(verbose>0) cat('  Inference for class "',object@y,'" = ',
                       groups[iy],':\n',sep='')
     xidi <- matrix(0, nrow=NROW(xid), ncol=NCOL(xid))
-    for(i in seq_len(NCOL(xidi)))
+    L <- c(0, NCOL(xid))
+    for(i in seq_len(NCOL(xidi))){
       xidi[,i] <- match(xid[,i],predictors[[i]])-1   
                                       # xidi = 0, ..., L-1
-    mle <- mlestimate(xi=xidi, method=method, naive=naive, verbose=verbose-1, ...)
+      L[i] <- length(predictors[[i]])
+    }
+    mle <- mlestimate(xi=xidi, method=method, L=L, naive=naive, 
+                      verbose=verbose-1, ...)
     if(verbose>0 & method=='pseudo') 
       cat('  Maximum pseudo-likelihood = ',mle$mle,'\n\n',sep='')
     

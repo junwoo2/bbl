@@ -83,7 +83,7 @@ setMethod('predict', 'bbl',
   m <- NCOL(object@data) - 1
   L <- NULL
   for(i in seq_len(m))
-      L <- c(L, length(object@predictors[[i]]))
+    L <- c(L, length(object@predictors[[i]]))
   h <- object@h
   J <- object@J
   nsample <- NROW(xi)

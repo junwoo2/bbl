@@ -5,11 +5,12 @@ struct Param{
   const std::vector<std::vector<short> > &ai;
   const std::vector<short> &L;
   double lambda;
+  double lambdah;
   const std::vector<double> &f1;
   const std::vector<std::vector<double> > &f2;
   double &lzp;
   bool naive;
-  bool &lzhalf;
+  bool lzhalf;
 };
 
 void f12(int i0, const std::vector<std::vector<short> > &si, 
@@ -29,10 +30,10 @@ void ln_dln_psl(const gsl_vector *x, void *params, double *f, gsl_vector *df);
 
 double lpr_psl(int i0, const std::vector<std::vector<short> > &si,
                const std::vector<short> &L,
-    double lambda, std::vector<double> &h, 
+    double lambda, double lambdah, std::vector<double> &h, 
     std::vector<std::vector<double> > &J, int nprint,
     unsigned int imax, double tol, int verbose, double &lzp, 
-    bool naive, bool &failed, bool &lzhalf);
+    bool naive, bool &failed, bool lzhalf);
 
 double pan2(int nsnp, int i0, int L, const std::vector<short> &ci, 
     const std::vector<double> &h1, const std::vector<std::vector<double> > &J1,

@@ -254,8 +254,8 @@ P_i(x|y, x_{l\backslash i}^k)
 \end{eqnarray}
 \label{eq:partial}
 \end{subequations}
-\!\!where ${\hat f}_i^{(y)}(x)$ and ${\hat h}_{ij}^{(y)}(x,x^\prime)$ are the first and 
-second moments of predictor values and $\mathbbm{1}(x)$ is the indicator function.
+\!\!where ${\hat f}_i^{(y)}(x)$ and ${\hat h}_{ij}^{(y)}(x,x^\prime)$ are the first 
+and second moments of predictor values and $\mathbbm{1}(x)$ is the indicator function.
 In \pkg{bbl}, Eqs.~(\ref{eq:partial}) are solved in \proglang{C++} functions using the quasi-Newton optimization function 
 \code{gsl_multimin_fdfminimizer_vector_bfgs2} in GNU Scientific Library 
 (\url{https://www.gnu.org/software/gsl}).
@@ -271,6 +271,19 @@ After pseudo-likelihood inference, therefore, the interaction parameters are sym
 J_{ij}(x,x^\prime)\leftarrow \frac{1}{2}\left[ J_{ij}(x,x^\prime)+ J_{ji}(x^\prime, x)\right].
 \end{equation}
 
+In \pkg{bbl}, the input data are filtered such that predictors with only one
+factor level (no variation in observed data) are removed. Nevertheless, in cross-validation
+of the processed data, sub-divisions into training and validation sets
+may lead to instances where factor levels observed for a given predictor within $x_i$ in 
+Eq.~(\ref{eq:partial}) are only a subset of those in the whole data.  
+To preserve the integrity of prediction on validation set, in which the same predictor may 
+have factor values not observed in the training set, we do not alter the overall factor levels 
+during cross-validation. 
+This convention can lead to difficulty in pseudo-likelihood maximization because
+optimization based on Eqs.~(\ref{eq:partial}) is ill-defined when any of the predictors are
+constant. In such cases, we augment the training data by an extra instance, in which constant predictors 
+take other factor levels.
+
 \subsection{Mean field inference}
 The other option for predictor distribution inference is mean field approximation. In 
 data-driven inference, the interaction parameters are approximated as \citep{nguyen_etal}
@@ -281,11 +294,13 @@ data-driven inference, the interaction parameters are approximated as \citep{ngu
 i.e., negative inverse of the covariance matrix,
 \begin{equation}
 \mathsf{C}^{(y)}_{ij}(x,x^\prime) = {\hat f}_{ij}(x,x^\prime) - {\hat f}_i(x){\hat f}_j(x^\prime).
+\label{eq:Cij}
 \end{equation}
 Equation~(\ref{eq:mf1}) can be interpreted as treating discrete ${\bf x}$ as if it were multivariate normal:
 Eq.~(\ref{eq:pxy}) would then be the counterpart of the multivariate normal p.d.f. with 
 $-J_{ij}^{(y)}(x,x^\prime)$ corresponding to the precision matrix.
-In real data where $n \sim {\rm d.f.}$ or less, the matrix inversion is often ill-behaved. It is regularized by interpolation of $\mathsf{C}^{(y)}$ 
+In real data where $n \sim {\rm d.f.}$ or less, the matrix inversion is often ill-behaved. It is regularized by 
+interpolation of $\mathsf{C}^{(y)}$ 
 between non-interacting (naive Bayes)
 ($\epsilon=0$) and fully interacting limits ($\epsilon=1$):
 \begin{equation}
@@ -321,6 +336,13 @@ The effective bias is related to frequency via Eq.~(\ref{eq:hbari}) because
 \end{equation}
 where the fact that ${\bar h}_i^{(y)}(0)=0$  was used in the second equality.
 
+As in pseudo-likelihood maximization, mean field inference also may encounter non-varying predictors
+during cross-validation. To apply the same inference scheme using
+Eqs.~(\ref{eq:Cij}), (\ref{eq:mf}) and (\ref{eq:hbari}) to such cases, the single-variable
+frequency ${\hat f}_i^{(y)}(x)$ and covariance ${\hat f}_{ij}^{(y)}(x,x^\prime)$ are computed 
+using data augmented by a prior count of 1 uniformly distributed among all $L_i$ factor levels for 
+each predictor.
+
 \subsection{Classification}
 For prediction, we combine predictor distributions for all response groups via Bayes formula:
 \begin{equation}
@@ -345,8 +367,9 @@ F_1({\bf x})&=&\ln P({\bf x}|y=1)-\ln P({\bf x}|y=0) + \ln (p_1/p_0)\nonumber\\
 \label{eq:F}
 \end{eqnarray}
 Therefore, if $J_{ij}^{(y)}(x,x^\prime)=0$ (naive Bayes), Eq.~(\ref{eq:py}) takes the form of
-the logistic regression formula. However, the actual naive Bayes parameter values differ from logistic regression fit.
-No expression for $P(y|{\bf x})$ simpler than Eq.~(\ref{eq:py}) exists for data with more than two groups.
+the logistic regression formula. However, the actual naive Bayes parameter values differ from logistic 
+regression fit. No expression for $P(y|{\bf x})$ simpler than Eq.~(\ref{eq:py}) exists for data with more 
+than two groups.
 
 In pseudo-likelihood maximization inference, $Z_y$ can be approximated by
 \begin{equation}
@@ -659,7 +682,7 @@ Note that when the object is created, the predictors without factor variations
 (pixels that are always empty) are dropped from data.
 %
 <<mnist2>>=
-cv <- crossval(mnist, method='mf', eps=0.1)
+cv <- crossval(mnist, method='mf', eps=0.05)
 @
 %
 The above run will take a few minutes. By feeding a vector of $\epsilon$ values, one can obtain
@@ -674,7 +697,7 @@ We now retrain the model without cross-validation under $\epsilon^*$ and classif
 (also down-sampled to $n=500$) images:
 %
 <<mnist3>>=
-mnist <- train(mnist, method='mf', eps=0.1)
+mnist <- train(mnist, method='mf', eps=0.05)
 dtest <- read.csv(system.file('extdata/mnist_test.csv',package='bbl'))
 dtest <- dtest[,colnames(dtest) %in% colnames(mnist@data)]
 pr <- predict(mnist, newdata=dtest[,-1], progress.bar=FALSE)
@@ -683,7 +706,7 @@ mean(yhat==dtest$y)
 @
 %
 Since \code{mnist} dropped a subset of original predictors, the test data must be filtered accordingly. 
-Note the slight increase in test score compared to cross-validation score because of the use of full 
+Note the increase in test score compared to cross-validation score because of the use of full 
 training data. Set \code{progress.bar = TRUE} to monitor the progress in a slow \code{predict} run.
 
 We performed similar cross-validation and test analyses of the full MNIST data 

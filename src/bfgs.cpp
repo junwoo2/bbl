@@ -85,6 +85,7 @@ double lnl_psl(const gsl_vector *v,void *params){  // evaluates log likelihood
   int i0=par->i0;
   vector<short> L=par->L;
   double lambda=par->lambda;
+  double lambdah=par->lambdah;
   int nsnp=(par->ai)[0].size();
 
   vector<double> h1(L[i0]);
@@ -108,7 +109,8 @@ double lnl_psl(const gsl_vector *v,void *params){  // evaluates log likelihood
   par->lzp = 0;
   for(int n=0;n<nind;n++){
     double lz=0;
-    double p=pan2(nsnp,i0,L,(par->ai)[n],h1,J1,lz, par->naive, par->lzhalf);
+    double p=pan2(nsnp,i0,L,(par->ai)[n],h1,J1,lz, par->naive, 
+                  par->lzhalf);
     ln += -log(p);
     par->lzp += lz;
   }
@@ -116,7 +118,8 @@ double lnl_psl(const gsl_vector *v,void *params){  // evaluates log likelihood
   par->lzp /= nind;
 
   for(int l=0;l<L[i0];l++)
-    ln+= lambda*h1[l]*h1[l]/2;
+    ln+= lambdah*h1[l]*h1[l]/2;
+  
   if(par->naive) return ln;
   
   for(int i=0; i<nsnp; i++){
@@ -134,6 +137,7 @@ void dlnl_psl(const gsl_vector *v,void *params,gsl_vector *df){   // first deriv
   vector<short> L=par->L;
   int nsnp=(par->ai)[0].size();
   double lambda=par->lambda;
+  double lambdah=par->lambdah;
   int i0=par->i0;
 
   vector<double> s1(L[i0]);
@@ -184,7 +188,7 @@ void dlnl_psl(const gsl_vector *v,void *params,gsl_vector *df){   // first deriv
   }
 
   for(int l0=0;l0<L[i0];l0++){
-    s1[l0] += lambda*h1[l0] - (par->f1)[l0];
+    s1[l0] += lambdah*h1[l0] - (par->f1)[l0];
     if(par->naive) continue;
     for(int j=0;j<nsnp;j++){
       if(j==i0) continue;
@@ -214,10 +218,11 @@ void ln_dln_psl(const gsl_vector *x,void *params,double *f,gsl_vector *df){
 }
 
 double lpr_psl(int i0, const vector<vector<short> > &ai, 
-               const vector<short> &L, double lambda, 
-               vector<double> &h, vector<vector<double> > &J, int nprint, 
+               const vector<short> &L, double lambda,
+               double lambdah, vector<double> &h, 
+               vector<vector<double> > &J, int nprint, 
                unsigned int Imax, double Tol, int verbose, double &lz, 
-               bool naive, bool &failed, bool &lzhalf){
+               bool naive, bool &failed, bool lzhalf){
 
   size_t iter=0;
   int status;
@@ -250,7 +255,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   T=gsl_multimin_fdfminimizer_vector_bfgs2;  // BFGS2 optimizer
   s=gsl_multimin_fdfminimizer_alloc(T,ndim);
 
-  Param par={i0, ai, L, lambda, f1, f2, lz, naive, lzhalf};
+  Param par={i0, ai, L, lambda, lambdah, f1, f2, lz, naive, lzhalf};
 
   my_func.params=&par;
   gsl_vector_set_zero(x);  // initial guess
@@ -272,7 +277,8 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   if(iter==Imax)
     Rcpp::Rcerr << "BFGS2 iteration failed to converge after " 
          << Imax << " iterations\n";
-    if(verbose > 0) Rcpp::Rcout << "  Predictor " << i0+1 << ": " << iter
+    if(verbose > 0) Rcpp::Rcout << "  Predictor " << i0+1 
+         << ": " << iter
          << " iterations, likelihood = " << s->f << endl;
 
   h.resize(L[i0]);

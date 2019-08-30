@@ -13,6 +13,9 @@
 #' @param object Object of class \code{bbl} containing data.
 #' @param lambda Vector of L2 penalizer values for \code{method = 'pseudo'}. Inferences
 #'        will be repeated for each value. Restricited to non-negative values.
+#' @param lambdah L2 penalizer in \code{method = 'pseudo'} applied to
+#'        parameter \code{h}. In contrast to \code{lambda}, 
+#'        only a single value is allowed.
 #' @param eps Vector of regularization parameters, \eqn{\epsilon\in[0,1]}, 
 #'        for \code{method = 'mf'}.
 #' @param nfold Number of folds for training/validation split.
@@ -48,7 +51,8 @@
 #' cv <- crossval(object=model, method='pseudo', lambda=lambda)
 #' plot(cv, log='x', type='b')
 #' @export
-crossval <- function(object, lambda=0.1, eps=0.9, nfold=5, method='pseudo', 
+crossval <- function(object, lambda=0.1, lambdah=0,
+                     eps=0.9, nfold=5, method='pseudo', 
                      naive=FALSE, use.auc=TRUE, verbose=1, useC=TRUE, 
                      prior.count=TRUE, progress.bar=FALSE, ...){
   
@@ -64,7 +68,11 @@ crossval <- function(object, lambda=0.1, eps=0.9, nfold=5, method='pseudo',
     eps <- 0
   }
   
-  if(method=='pseudo') reglist <- lambda
+  if(method=='pseudo'){ 
+    reglist <- lambda
+    if(length(lambdah)>1) 
+      stop('Only a single value of lambdah allowed')
+  }
   else if(method=='mf'){ 
     if(!naive) reglist <- eps
     else reglist <- 0
@@ -73,10 +81,17 @@ crossval <- function(object, lambda=0.1, eps=0.9, nfold=5, method='pseudo',
   
   res <- NULL
   for(reg in reglist){
+    if(is.null(lambdah)) regh <- reg
+    else regh <- lambdah
     if(verbose>0){ 
-      if(method=='pseudo') cat('Cross validation under lambda = ',sep='')
-      else cat('Cross validation under epsilon = ',sep='')
-        cat(reg,'\n',sep='')
+      if(method=='pseudo'){
+        if(regh>0)
+          cat('Cross validation under lambda = (',reg,
+            ',',regh,')\n',sep='')
+        else
+          cat('Cross validation under lambda = ',reg,'\n',sep='')
+      }
+      else cat('Cross validation under epsilon = ',reg,'\n',sep='')
     }
     pred <- NULL
     for(k in seq_len(nfold)){
@@ -99,10 +114,12 @@ crossval <- function(object, lambda=0.1, eps=0.9, nfold=5, method='pseudo',
       obtrain <- '['(x=object, i=itrain, remove.const=FALSE)
       if(method=='pseudo')
         obtrain <- train(object=obtrain, method=method, lambda=reg,  
-                         naive=naive, verbose=verbose-1, ...)
+                         naive=naive, verbose=verbose-1, lambdah=regh,
+                         ...)
       else
         obtrain <- train(object=obtrain, method=method, eps=reg,
-                         naive=naive, verbose=verbose-1, ...)
+                         naive=naive, verbose=verbose-1, lambdah=lambdah,
+                         ...)
       pr <- predict(object=obtrain, newdata=obval@data, logit=!use.auc,
                     useC=useC, progress.bar=progress.bar, 
                     verbose=verbose-1, naive=naive)

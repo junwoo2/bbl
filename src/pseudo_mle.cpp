@@ -4,9 +4,10 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-List pseudo_mle(NumericMatrix xi, NumericVector Lambda, IntegerVector Nprint, 
-                IntegerVector Itmax, NumericVector Tol,
-                LogicalVector Naive, IntegerVector Verbose, LogicalVector Lzhalf){
+List pseudo_mle(NumericMatrix xi, IntegerVector Lv, NumericVector Lambda, 
+                IntegerVector Nprint, IntegerVector Itmax, NumericVector Tol,
+                LogicalVector Naive, IntegerVector Verbose, 
+                LogicalVector Lzhalf){
   
   int n = xi.nrow();
   int m = xi.ncol();
@@ -29,7 +30,7 @@ List pseudo_mle(NumericMatrix xi, NumericVector Lambda, IntegerVector Nprint,
       nbad++;
     }
     else bad[i]=false;
-    L[i]=xmax;
+    L[i]=Lv(i);
   }
   if(nbad>0){
     std::vector<short> v(m);
@@ -49,6 +50,7 @@ List pseudo_mle(NumericMatrix xi, NumericVector Lambda, IntegerVector Nprint,
   std::vector<std::vector<std::vector<double> > > J(m);
   
   double lambda = Lambda[0];
+  double lambdah = Lambda[1];
   int nprint = Nprint[0];
   unsigned int Imax = Itmax[0];
   double tol = Tol[0];
@@ -61,7 +63,8 @@ List pseudo_mle(NumericMatrix xi, NumericVector Lambda, IntegerVector Nprint,
   for(int i0=0; i0<m; i0++){
     double z=0;
     bool failed=false;
-    lkl += lpr_psl(i0, sv, L, lambda, h[i0], J[i0], nprint, Imax, tol,
+    lkl += lpr_psl(i0, sv, L, lambda, lambdah, h[i0], J[i0], 
+                   nprint, Imax, tol,
                    verbose, z, naive, failed, lzhalf);
     if(failed)
       Rcpp::Rcerr << " Warning: failed to converge in pseudo\n";
