@@ -30,6 +30,7 @@
 #' @param useC Use \code{C++} version in \code{\link{predict}} method of \code{bbl}.
 #' @param prior.count Use prior count in \code{method = 'mf'}.
 #' @param progress.bar Display progress bar in \code{\link{predict}}.
+#' @param fixL Do not alter the levels of predictors in training step.
 #' @param ... Other parameters to \code{\link{mlestimate}}.
 #' @return Data frame of regularization parameter values and validation scores.
 #' @examples
@@ -54,7 +55,8 @@
 crossval <- function(object, lambda=0.1, lambdah=0,
                      eps=0.9, nfold=5, method='pseudo', 
                      naive=FALSE, use.auc=TRUE, verbose=1, useC=TRUE, 
-                     prior.count=TRUE, progress.bar=FALSE, ...){
+                     prior.count=TRUE, progress.bar=FALSE, 
+                     fixL=FALSE, ...){
   
   groups <- object@groups
   Ly <- length(groups)
@@ -115,11 +117,11 @@ crossval <- function(object, lambda=0.1, lambdah=0,
       if(method=='pseudo')
         obtrain <- train(object=obtrain, method=method, lambda=reg,  
                          naive=naive, verbose=verbose-1, lambdah=regh,
-                         ...)
+                         fixL=fixL, ...)
       else
         obtrain <- train(object=obtrain, method=method, eps=reg,
                          naive=naive, verbose=verbose-1, lambdah=lambdah,
-                         ...)
+                         fixL=fixL, ...)
       pr <- predict(object=obtrain, newdata=obval@data, logit=!use.auc,
                     useC=useC, progress.bar=progress.bar, 
                     verbose=verbose-1, naive=naive)

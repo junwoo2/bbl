@@ -11,13 +11,6 @@ List mfwrapper(NumericMatrix xi, IntegerVector Lv, NumericVector Eps){
   std::vector<short> L;
   std::vector<std::vector<short> > sv(n);
   for(int i=0; i<m; i++){
-//    short xmin=xi(0,i);
-//    short xmax=xi(0,i);
-//    for(int k=1; k<n; k++){
-//      if(xmax<xi(k,i)) xmax=xi(k,i);
-//      if(xmin>xi(k,i)) xmin=xi(k,i);
-//    }
-//    L.push_back(xmax);
     L.push_back(Lv[i]);
     for(int k=0; k<n; k++)
       sv[k].push_back(xi(k,i));

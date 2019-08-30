@@ -82,7 +82,7 @@ setMethod('initialize', signature=('bbl'),
             if(is.null(predictors)){
               predictors <- list()
               cnt <- NULL
-              for(i in seq(nvar)){
+              for(i in seq_len(nvar)){
                 fac <- levels(factor(xi[,i]))
                 fac <- fac[order(fac)]
                 if(length(fac)==1) next()
@@ -91,7 +91,7 @@ setMethod('initialize', signature=('bbl'),
               }
             } else{
               cnt <- NULL
-              for(i in seq(nvar)){
+              for(i in seq_len(nvar)){
                 fac <- levels(factor(xi[,i]))
                 if(sum(!fac%in%predictors[[i]])>0)
                   stop('Input data contains factor levels not in predictor')

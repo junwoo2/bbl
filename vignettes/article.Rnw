@@ -234,10 +234,12 @@ and
 \label{eq:barh}
 \end{equation}
 
-Including an $L_2$ penalizer $\lambda$, $L_{iy}$ in Eq.~(\ref{eq:Ly2}) becomes
+Including $L_2$ penalizers $(\lambda_h,\lambda)$, 
+$L_{iy}$ in Eq.~(\ref{eq:Ly2}) becomes
 \begin{equation}
 L_{iy}=\sum_{k\in y} \left[{\bar h}_i^{(y)}(x_i^k|x_{j\backslash i}^k)-\ln Z_{iy}(x_{j\backslash i}^k)\right]
--\frac{\lambda}{2}\left[ \sum_x h_i^{(y)}(x)^2+\sum_{j,x,x^\prime} J_{ij}^{(y)}(x,x^\prime)^2\right]
+-\frac{1}{2}\left[\lambda_h \sum_x h_i^{(y)}(x)^2
++\lambda\sum_{j,x,x^\prime} J_{ij}^{(y)}(x,x^\prime)^2\right]
 \label{eq:Liy}
 \end{equation}
 with first derivatives
@@ -245,7 +247,7 @@ with first derivatives
 \begin{eqnarray}
 \frac{\partial L_{iy}/n_y}{\partial h_i^{(y)}(x)} &=& {\hat f}_i^{(y)}(x) 
 - \frac{1}{n_y}\sum_{k\in y} P_i(x|y, x_{l\backslash i}^k)
--\lambda h_i^{(y)}(x),
+-\lambda_h h_i^{(y)}(x),
 \\
 \frac{\partial L_{iy}/n_y}{\partial J_{ij}^{(y)}(x,x^\prime)} &=& {\hat f}_{ij}^{(y)}(x,x^\prime) 
 - \frac{1}{n_y}\sum_{k\in y} \mathbbm{1}(x_j^k=x^\prime)
@@ -259,6 +261,7 @@ and second moments of predictor values and $\mathbbm{1}(x)$ is the indicator fun
 In \pkg{bbl}, Eqs.~(\ref{eq:partial}) are solved in \proglang{C++} functions using the quasi-Newton optimization function 
 \code{gsl_multimin_fdfminimizer_vector_bfgs2} in GNU Scientific Library 
 (\url{https://www.gnu.org/software/gsl}).
+By default, $\lambda_h=0$ and only interaction parameters are penalized.
 As can be seen from the third equality of Eq.~(\ref{eq:Ly2}), the pseudo-likelihood inference
 decouples into individual predictors, and the inference for each $i$ in \pkg{bbl} is performed
 sequentially. The resulting interaction parameters, however, do not satisfy the required
@@ -276,13 +279,9 @@ factor level (no variation in observed data) are removed. Nevertheless, in cross
 of the processed data, sub-divisions into training and validation sets
 may lead to instances where factor levels observed for a given predictor within $x_i$ in 
 Eq.~(\ref{eq:partial}) are only a subset of those in the whole data.  
-To preserve the integrity of prediction on validation set, in which the same predictor may 
-have factor values not observed in the training set, we do not alter the overall factor levels 
-during cross-validation. 
-This convention can lead to difficulty in pseudo-likelihood maximization because
-optimization based on Eqs.~(\ref{eq:partial}) is ill-defined when any of the predictors are
-constant. In such cases, we augment the training data by an extra instance, in which constant predictors 
-take other factor levels.
+It is thus possible that optimization based on Eqs.~(\ref{eq:partial}) is 
+ill-defined when any of the predictors are constant. 
+In such cases, we augment the training data by an extra instance, in which constant predictors take other factor levels.
 
 \subsection{Mean field inference}
 The other option for predictor distribution inference is mean field approximation. In 
@@ -338,7 +337,8 @@ where the fact that ${\bar h}_i^{(y)}(0)=0$  was used in the second equality.
 
 As in pseudo-likelihood maximization, mean field inference also may encounter non-varying predictors
 during cross-validation. To apply the same inference scheme using
-Eqs.~(\ref{eq:Cij}), (\ref{eq:mf}) and (\ref{eq:hbari}) to such cases, the single-variable
+Eqs.~(\ref{eq:Cij}), (\ref{eq:mf}) and (\ref{eq:hbari}) to such cases, 
+the single-variable
 frequency ${\hat f}_i^{(y)}(x)$ and covariance ${\hat f}_{ij}^{(y)}(x,x^\prime)$ are computed 
 using data augmented by a prior count of 1 uniformly distributed among all $L_i$ factor levels for 
 each predictor.
@@ -466,7 +466,8 @@ head(model@J,n=1)
 %
 The function \code{train} here solves the maximum pseudo-likelihood equations (\ref{eq:partial}) 
 using training data and stores the inferred parameters
-$h_i^{(y)}$ and $J_{ij}^{(y)}$ as lists with argument order $(y,i)$ and $(y,i,j)$, respectively. 
+$h_i^{(y)}$ and $J_{ij}^{(y)}$ as lists with argument order $(y,i)$ and 
+$(y,i,j)$, respectively. 
 The inner-most elements of the lists
 are vectors and matrices of dimension $L_i-1=\text{\code{c(3,1,1)}}$ and $(L_i-1,L_j-1)$, respectively.
 
@@ -682,7 +683,7 @@ Note that when the object is created, the predictors without factor variations
 (pixels that are always empty) are dropped from data.
 %
 <<mnist2>>=
-cv <- crossval(mnist, method='mf', eps=0.05)
+cv <- crossval(mnist, method='mf', eps=0.1)
 @
 %
 The above run will take a few minutes. By feeding a vector of $\epsilon$ values, one can obtain
@@ -697,7 +698,7 @@ We now retrain the model without cross-validation under $\epsilon^*$ and classif
 (also down-sampled to $n=500$) images:
 %
 <<mnist3>>=
-mnist <- train(mnist, method='mf', eps=0.05)
+mnist <- train(mnist, method='mf', eps=0.1)
 dtest <- read.csv(system.file('extdata/mnist_test.csv',package='bbl'))
 dtest <- dtest[,colnames(dtest) %in% colnames(mnist@data)]
 pr <- predict(mnist, newdata=dtest[,-1], progress.bar=FALSE)
@@ -776,7 +777,7 @@ We assess the performance of pseudo-likelihood and mean field inferences below u
 <<jaspar3>>=
 model <- bbl(data=data)
 model
-ps <- crossval(model, method='pseudo', lambda=10^seq(1,-1,-1), verbose=0)
+ps <- crossval(model, method='pseudo', lambda=10^seq(-1,-2,-0.2), verbose=0)
 ps
 mf <- crossval(model, method='mf', eps=seq(0.1,0.4,0.1),verbose=0)
 mf
@@ -799,17 +800,22 @@ Data set is from \cite{jaspar2018} (sample ID MA0014.3; see text).
 \label{fig:jaspar}
 \end{figure}
 
-We analyzed 856 data sets from JASPAR database of varying sample sizes and segment lengths with 
-the same protocol. Differences between fully optimized mean field AUC scores and those from non-interacting models (naive Bayes) varied widely, 
-largely independent of segment lengths (Fig.~\ref{fig:tfbs}{\bf a}). 
-For most of data sets, pseudo-likelihood resulted in substantially higher scores than mean field
-(Fig.~\ref{fig:tfbs}{\bf b}).
+%We analyzed 856 data sets from JASPAR database of varying sample
+We analyzed 45 data sets from JASPAR database of varying sample
+sizes and segment lengths with 
+the same protocol. Differences between fully optimized AUC scores and those from non-interacting models (naive Bayes) were most pronounced in 
+intermediate ranges of AUC, and were 
+independent of segment lengths (Fig.~\ref{fig:tfbs}{\bf a}).
+For many data sets, pseudo-likelihood resulted in higher scores than mean field (Fig.~\ref{fig:tfbs}{\bf b}).
 
 \begin{figure}[t!]
 \centering
 %\includegraphics[scale=1.0]{/mnt/d/bbm/paper/test_script/tfbs/pipe/tfbs}
 \includegraphics[scale=1]{tfbs}
-\caption{\small AUC scores of \pkg{bbl} model trained on 856 transcription factor binding site sequence data sets from JASPAR \citep{jaspar2018} under the same protocol as in Fig.~\ref{fig:jaspar}.
+\caption{\small 
+%AUC scores of \pkg{bbl} model trained on 856 transcription factor binding site
+AUC scores of \pkg{bbl} model trained on 45 transcription factor binding site
+sequence data sets from JASPAR \citep{jaspar2018} under the same protocol as in Fig.~\ref{fig:jaspar}.
 ({\bf a}) Comparison of naive Bayes (NB; mean field with $\epsilon=0$) and full mean field (MF) results. 
 ({\bf b}) Comparison of mean field (MF) and pseudo-likelihood 
 maximization (pseudo-L) scores. The symbol colors show the segment length of each
@@ -839,8 +845,7 @@ moderate number of unordered features (such as nucleotide sequences) combine to 
 (Sec.~\ref{sec:tfbs}). Among the two options for inference methods, mean field
 (\code{method = `mf'}) is faster but can become memory intensive for models 
 with a large number of predictors. Pseudo-likelihood maximization 
-(\code{method = 'pseudo'}) is slower but generally performs better
-(Fig.~\ref{fig:tfbs}{\bf b}).
+(\code{method = 'pseudo'}) is slower but generally performs better.
 
 %% -- Optional special unnumbered sections -------------------------------------
 

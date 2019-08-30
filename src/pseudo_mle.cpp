@@ -74,7 +74,8 @@ List pseudo_mle(NumericMatrix xi, IntegerVector Lv, NumericVector Lambda,
   lkl /= n;
   
   List x = List::create(Named("h") = h, Named("J") = J, 
-                        Named("lkl") = lkl, Named("lz") = lz);
+                        Named("lkl") = lkl, Named("lz") = lz,
+                        Named("L") = L);
   return x;
 }
 
