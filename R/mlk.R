@@ -51,7 +51,7 @@
 #' xi <- sample_xi(nsample=5000, predictors=predictors, h=par$h, J=par$J,
 #'                 code_out=TRUE)
 #' head(xi)
-#' ps <- mlestimate(xi=xi, method='pseudo')
+#' ps <- mlestimate(xi=xi, method='pseudo', lambda=0)
 #' ps$h
 #' ps$J[[1]]
 #' mf <- mlestimate(xi=xi, method='mf', eps=0.9)
@@ -62,7 +62,7 @@
 #' points(x=unlist(par$J), y=unlist(mf$J), col='green')
 #' @export
 
-mlestimate <- function(xi, method='pseudo', L=NULL, lambda=0.1,
+mlestimate <- function(xi, method='pseudo', L=NULL, lambda=1e-5,
                        lambdah=0, symmetrize=TRUE, eps=0.9, 
                        nprint=100, itmax=10000,
                        tolerance=1e-5, verbose=1, prior.count=TRUE,

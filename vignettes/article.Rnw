@@ -682,7 +682,7 @@ mnist
 Note that when the object is created, the predictors without factor variations
 (pixels that are always empty) are dropped from data.
 %
-<<mnist2>>=
+<<mnist2, eval=FALSE>>=
 cv <- crossval(mnist, method='mf', eps=0.1)
 @
 %
@@ -697,7 +697,7 @@ data.
 We now retrain the model without cross-validation under $\epsilon^*$ and classify test set 
 (also down-sampled to $n=500$) images:
 %
-<<mnist3>>=
+<<mnist3, eval=FALSE>>=
 mnist <- train(mnist, method='mf', eps=0.1)
 dtest <- read.csv(system.file('extdata/mnist_test.csv',package='bbl'))
 dtest <- dtest[,colnames(dtest) %in% colnames(mnist@data)]
@@ -800,21 +800,19 @@ Data set is from \cite{jaspar2018} (sample ID MA0014.3; see text).
 \label{fig:jaspar}
 \end{figure}
 
-%We analyzed 856 data sets from JASPAR database of varying sample
-We analyzed 45 data sets from JASPAR database of varying sample
+We analyzed 856 data sets from JASPAR database of varying sample
 sizes and segment lengths with 
-the same protocol. Differences between fully optimized AUC scores and those from non-interacting models (naive Bayes) were most pronounced in 
-intermediate ranges of AUC, and were 
+the same protocol. Differences between fully optimized AUC scores and those from non-interacting models (naive Bayes) were most pronounced above the
+intermediate range of AUC, and were 
 independent of segment lengths (Fig.~\ref{fig:tfbs}{\bf a}).
-For many data sets, pseudo-likelihood resulted in higher scores than mean field (Fig.~\ref{fig:tfbs}{\bf b}).
+Pseudo-likelihood results had better scores compared to mean field on avarge (Fig.~\ref{fig:tfbs}{\bf b}).
 
 \begin{figure}[t!]
 \centering
 %\includegraphics[scale=1.0]{/mnt/d/bbm/paper/test_script/tfbs/pipe/tfbs}
 \includegraphics[scale=1]{tfbs}
 \caption{\small 
-%AUC scores of \pkg{bbl} model trained on 856 transcription factor binding site
-AUC scores of \pkg{bbl} model trained on 45 transcription factor binding site
+AUC scores of \pkg{bbl} model trained on 856 transcription factor binding site
 sequence data sets from JASPAR \citep{jaspar2018} under the same protocol as in Fig.~\ref{fig:jaspar}.
 ({\bf a}) Comparison of naive Bayes (NB; mean field with $\epsilon=0$) and full mean field (MF) results. 
 ({\bf b}) Comparison of mean field (MF) and pseudo-likelihood 
@@ -832,7 +830,8 @@ associated with a discrete multi-class response variable.
 The currently available \proglang{R} package \pkg{BoltzMM} is limited
 to fitting data into a single fully visible Boltzmann distribution
 without reference to response variables, and assumes binary 
-predictors. The package \pkg{bbl} extends the basic statistical distribution to accommodate heterogeneous, factor-valued predictors via 
+predictors. The package \pkg{bbl} extends the basic statistical distribution to accommodate 
+heterogeneous, factor-valued predictors via 
 Eq.~(\ref{eq:pxy}), embedding it in a Bayesian classifier for supervised learning and prediction.
 
 Compared to more widely applied restricted Boltzmann machine algorithms
@@ -853,7 +852,8 @@ with a large number of predictors. Pseudo-likelihood maximization
 
 Installation of \pkg{bbl} requires the GNU Scientific library 
 \url{https://www.gnu.org/software/gsl} installed. The results in this paper 
-were obtained using \proglang{R}~\Sexpr{paste(R.Version()[6:7], collapse = ".")}. \proglang{R} itself and all packages used are available from the Comprehensive
+were obtained using \proglang{R}~\Sexpr{paste(R.Version()[6:7], collapse = ".")}. \proglang{R} itself 
+and all packages used are available from the Comprehensive
 \proglang{R} Archive Network (CRAN) at \url{https://CRAN.R-project.org/}.
 
 \bibliography{refs}

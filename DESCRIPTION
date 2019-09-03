@@ -1,6 +1,6 @@
 Package: bbl
 Title: Boltzmann Bayes Learner
-Version: 0.1.3
+Version: 0.1.5
 Authors@R: c(person("Jun","Woo",role=c("aut","cre"),email="jwoo@umn.edu"),
              person("Jinhua","Wang", role=c("ctb")))
 Maintainer: Jun Woo <jwoo@umn.edu>

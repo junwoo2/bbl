@@ -36,10 +36,9 @@
 #' @examples
 #' set.seed(513)
 #' m <- 5
-#' n <- 500
+#' n <- 100
 #' predictors <- list()
 #' for(i in 1:m) predictors[[i]] <- c('a','c','g','t')
-#' lambda <- 10^seq(-4,0,1)
 #' 
 #' par0 <- randompar(predictors)
 #' xi0 <- sample_xi(nsample=n, predictors=predictors, h=par0$h, J=par0$J)
@@ -49,8 +48,8 @@
 #' dat <- cbind(xi, data.frame(y=c(rep('control',n),rep('case',n))))
 #' model <- bbl(data=dat, groups=c('control','case'))
 #' 
-#' cv <- crossval(object=model, method='pseudo', lambda=lambda)
-#' plot(cv, log='x', type='b')
+#' cv <- crossval(object=model, method='mf', eps=seq(0.1,0.9,0.1))
+#' plot(cv, type='b')
 #' @export
 crossval <- function(object, lambda=0.1, lambdah=0,
                      eps=0.9, nfold=5, method='pseudo', 
