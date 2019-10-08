@@ -17,7 +17,8 @@
 #'        parameter \code{h}. In contrast to \code{lambda}, 
 #'        only a single value is allowed.
 #' @param eps Vector of regularization parameters, \eqn{\epsilon\in[0,1]}, 
-#'        for \code{method = 'mf'}.
+#'        for \code{method = 'mf'}. Inference will be repeeated
+#'        for each value.
 #' @param nfold Number of folds for training/validation split.
 #' @param method \code{c('pseudo','mf')} for pseudo-likelihood maximization or
 #'        mean field.

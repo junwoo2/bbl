@@ -18,8 +18,7 @@
 #' @param L Vector of number of factor levels in each predictor. If
 #'        \code{NULL}, will be inferred from \code{xi}.
 #' @param lambda Vector of L2 regularization parameters for 
-#'        \code{method = 'pseudo'}. Inference will be repeated for each value 
-#'        of \code{lambda}. Applies to interaction parameters \code{J}.
+#'        \code{method = 'pseudo'}. Applies to interaction parameters \code{J}.
 #' @param lambdah L2 parameters for \code{h} in \code{'pseudo'}.
 #'         If \code{NULL}, it is set equal to \code{lambda}.
 #'         \code{lambdah = 0} will free \code{h} from penalization.
@@ -27,8 +26,7 @@
 #'        taking mean values of the matrix and its trace:
 #'        \eqn{J_{ij}^{(y)}(x_1,x_2)=J_{ji}^{(y)}(x_2,x_1)}.
 #' @param eps Vector of regularization parameters for \code{mf}. Must be
-#'        within the range of \eqn{\epsilon \in [0,1]}. Inference will be 
-#'        repeated for each value of \code{eps}.
+#'        within the range of \eqn{\epsilon \in [0,1]}.
 #' @param nprint Frequency of printing iteration progress under \code{'pseudo'}.
 #' @param itmax Maximum number of iterations for \code{'pseudo'}.
 #' @param tolerance Upper bound for fractional changes in pseduo-likelihood
@@ -87,8 +85,8 @@ mlestimate <- function(xi, method='pseudo', L=NULL, lambda=1e-5,
   }
   
   xi <- as.matrix(xi)
-  if(!is.numeric(xi[1,1])
-     | min(xi)<0) stop('Input data to mlestimate must be numeric and non-negative')
+  if(!is.numeric(xi[1,1]) | min(xi)<0) 
+    stop('Input data to mlestimate must be numeric and non-negative')
   
   if(method=='pseudo'){
     Lambda <- c(lambda, lambdah)

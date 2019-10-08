@@ -69,7 +69,8 @@ bbl <- setClass('bbl',
 #' model
 #' @importFrom methods initialize new callNextMethod is
 setMethod('initialize', signature=('bbl'),
-          definition=function(.Object, data, predictors=NULL, groups=NULL, y='y', ...){
+          definition=function(.Object, data, predictors=NULL, groups=NULL, 
+                              y='y', ...){
             if(!is.data.frame(data))
               data <- as.data.frame(data)
             if(!y %in% colnames(data)) stop(paste0(y,' not in data'))
@@ -102,8 +103,8 @@ setMethod('initialize', signature=('bbl'),
             data <- cbind(data.frame(y=data[,iy]), xi[,cnt])
             colnames(data)[1] <- y
             if(length(cnt)<nvar)
-              cat(' ',nvar-length(cnt),
-                      ' variables with one level removed\n', sep='')
+              warning(paste0(' ',nvar-length(cnt),
+                      ' variables with one level removed\n'))
             .Object <- callNextMethod(.Object, predictors=predictors,
                                       groups=groups, data=data, y=y, ...)
             return(.Object)

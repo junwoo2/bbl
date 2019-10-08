@@ -127,7 +127,8 @@ read.fasta <- function(file, rownames=FALSE){
     }
   }
   if(rownames){
-    if(length(label)!=NROW(dat)) stop('Annotation lines do not match sequences.')
+    if(length(label)!=NROW(dat)) 
+      stop('Annotation lines do not match sequences.')
     rownames(dat) <- label
   }
   colnames(dat) <- seq_len(NCOL(dat))
