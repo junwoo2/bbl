@@ -12,7 +12,9 @@
 #'        zero to positive integral upper bound \code{L-1}. 
 #'        \code{\link{train}} does
 #'        the transformation from factors to this numeric matrix for
-#'        \code{bbl} objects. 
+#'        \code{bbl} objects.
+#' @param qJ Matrix of logicals indicating which predictor pairs are
+#'        interacting. If \code{NULL}, all are allowed.
 #' @param method \code{c('pseudo','mf')} for pseudo-likelihood maximization or
 #'        mean field inference.
 #' @param L Vector of number of factor levels in each predictor. If
@@ -60,16 +62,22 @@
 #' points(x=unlist(par$J), y=unlist(mf$J), col='green')
 #' @export
 
-mlestimate <- function(xi, method='pseudo', L=NULL, lambda=1e-5,
-                       lambdah=0, symmetrize=TRUE, eps=0.9, 
-                       nprint=100, itmax=10000,
-                       tolerance=1e-5, verbose=1, prior.count=TRUE,
-                       naive=FALSE, lz.half=FALSE){
+mlestimate <- function(xi, weights=1, qJ=NULL, method='pseudo', L=NULL, 
+                    lambda=0, lambdah=0, symmetrize=TRUE, eps=0.9, 
+                    nprint=100, itmax=10000, tolerance=1e-6, verbose=1, 
+                    prior.count=TRUE, naive=FALSE, lz.half=FALSE){
   
   if(is.null(lambdah))
     lambdah <- lambda
   
   m <- NCOL(xi)
+  if(is.null(qJ)){
+    qJ <- matrix(TRUE, nrow=m, ncol=m)
+    rownames(qJ) <- colnames(qJ) <- colnames(xi)
+    diag(qJ) <- FALSE
+  }
+  naive <- sum(qJ)==0  # no interaction
+  
   La <- apply(xi, 2, max)
   if(is.null(L))
     L <- La
@@ -88,6 +96,11 @@ mlestimate <- function(xi, method='pseudo', L=NULL, lambda=1e-5,
   if(!is.numeric(xi[1,1]) | min(xi)<0) 
     stop('Input data to mlestimate must be numeric and non-negative')
   
+  nsample <- NROW(xi)
+  if(length(weights)==1) weights <- rep(weights[1], nsample)
+  else if(length(weights)!=nsample) 
+    stop('Error in size of weights')
+  
   if(method=='pseudo'){
     Lambda <- c(lambda, lambdah)
     Nprint <- c(nprint)
@@ -96,13 +109,13 @@ mlestimate <- function(xi, method='pseudo', L=NULL, lambda=1e-5,
     Verbose <- c(verbose)
     Lzhalf <- c(lz.half)
     Naive <- c(naive)
-    theta <- pseudo_mle(xi, L, Lambda, Nprint, Itmax, Tol, Naive, 
-                        Verbose, Lzhalf)
+    theta <- pseudo_mle(xi, weights, qJ, L, Lambda, Nprint, Itmax, Tol, 
+                        Naive, Verbose, Lzhalf)
     L <- theta$L
   }
   else if(method=='mf'){
     Eps <- c(eps)
-    theta <- mfwrapper(xi, L, Eps)
+    theta <- mfwrapper(xi, weights, qJ, L, Eps)
   }
   else stop('unknown method in mlestimate')
 
@@ -122,6 +135,6 @@ mlestimate <- function(xi, method='pseudo', L=NULL, lambda=1e-5,
     }
   }
 
-  return(list(h=h, J=J, mle=theta$lkl, lz=theta$lz))
+  return(list(h=h, J=J, lkh=theta$lkh, lz=theta$lz))
 
 }

@@ -99,6 +99,7 @@ double lnl_psl(const gsl_vector *v,void *params){  // evaluates log likelihood
     h1[l0]=gsl_vector_get(v,m++);
     for(int i=0; i<nsnp; i++){ 
       if(i==i0 || par->naive) continue;
+      if(!(par->qj)[i]) continue;
       for(int l1=0;l1<L[i];l1++)
         J1[i][L[i]*l0+l1]=gsl_vector_get(v,m++);
     }
@@ -107,15 +108,16 @@ double lnl_psl(const gsl_vector *v,void *params){  // evaluates log likelihood
   int nind=int((par->ai).size());
   ln=0;
   par->lzp = 0;
+  double wsum = 0;
   for(int n=0;n<nind;n++){
     double lz=0;
-    double p=pan2(nsnp,i0,L,(par->ai)[n],h1,J1,lz, par->naive, 
-                  par->lzhalf);
-    ln += -log(p);
+    double p=pan2(nsnp,i0,L,(par->ai)[n],h1,J1,lz, par->naive, par->lzhalf);
+    ln += -log(p)*(par->wgt)[n];
     par->lzp += lz;
+    wsum += (par->wgt)[n];
   }
-  ln /= nind;
-  par->lzp /= nind;
+  ln /= wsum;
+  par->lzp /= wsum;
 
   for(int l=0;l<L[i0];l++)
     ln+= lambdah*h1[l]*h1[l]/2;
@@ -124,6 +126,7 @@ double lnl_psl(const gsl_vector *v,void *params){  // evaluates log likelihood
   
   for(int i=0; i<nsnp; i++){
     if(i==i0) continue;
+    if(!(par->qj)[i]) continue;
     for(int l=0;l<L[i0]*L[i];l++)
       ln+=lambda*J1[i][l]*J1[i][l]/2;
   }
@@ -155,6 +158,7 @@ void dlnl_psl(const gsl_vector *v,void *params,gsl_vector *df){   // first deriv
     if(par->naive) continue;
     for(int i=0; i<nsnp; i++){ 
       if(i==i0) continue;
+      if(!(par->qj)[i]) continue;
       for(int l1=0; l1<L[i]; l1++)
         J1[i][L[i]*l0+l1]=gsl_vector_get(v,m++);
     }
@@ -170,16 +174,21 @@ void dlnl_psl(const gsl_vector *v,void *params,gsl_vector *df){   // first deriv
     }
   }
 
+  double wsum = 0.0;
+  for(int k=0;k<nind;k++)
+    wsum += (par->wgt)[k];
+  
   for(int k=0;k<nind;k++){
     vector<double> peff(L[i0]);
     double lz=0;
     pan3(peff, nsnp, i0, L, (par->ai)[k], h1, J1, lz, par->naive);
     for(int l0=0;l0<L[i0];l0++){
-      double f=peff[l0]/nind;
+      double f=peff[l0]*(par->wgt)[k]/wsum;
       s1[l0]+= f;
       if(par->naive) continue;
       for(int j=0;j<nsnp;j++){
         if(j==i0) continue;
+        if(!(par->qj)[j]) continue;
         short a=(par->ai)[k][j];
         if(a==0) continue;
         s2[j][L[j]*l0+a-1] += f;
@@ -192,6 +201,7 @@ void dlnl_psl(const gsl_vector *v,void *params,gsl_vector *df){   // first deriv
     if(par->naive) continue;
     for(int j=0;j<nsnp;j++){
       if(j==i0) continue;
+      if(!(par->qj)[j]) continue;
       for(int l1=0;l1<L[j];l1++)
         s2[j][L[j]*l0+l1]+=-(par->f2)[j][L[j]*l0+l1]
              +lambda*J1[j][L[j]*l0+l1];
@@ -204,6 +214,7 @@ void dlnl_psl(const gsl_vector *v,void *params,gsl_vector *df){   // first deriv
     if(par->naive) continue;
     for(int i=0; i<nsnp; i++){ 
       if(i==i0) continue;
+      if(!(par->qj)[i]) continue;
       for(int l1=0;l1<L[i];l1++)
         gsl_vector_set(df,m++,s2[i][L[i]*l0+l1]);
     }
@@ -218,6 +229,7 @@ void ln_dln_psl(const gsl_vector *x,void *params,double *f,gsl_vector *df){
 }
 
 double lpr_psl(int i0, const vector<vector<short> > &ai, 
+               const vector<double> &wgt, const vector<bool> &qj,
                const vector<short> &L, double lambda,
                double lambdah, vector<double> &h, 
                vector<vector<double> > &J, int nprint, 
@@ -232,7 +244,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   vector<double> f1(nsnp);
   vector<vector<double> > f2(nsnp);
 
-  f12(i0, ai, f1, f2, L, naive, false);
+  f12(i0, ai, wgt, f1, f2, L, naive, false);
 
   const gsl_multimin_fdfminimizer_type *T;
   gsl_multimin_fdfminimizer *s;
@@ -243,7 +255,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   int ndim = L[i0];
   if(!naive){
     for(int i=0; i<nsnp; i++)
-      if(i!=i0) ndim += L[i0]*L[i];
+      if(i!=i0 && qj[i]) ndim += L[i0]*L[i];
   }
   
   my_func.n=ndim;         
@@ -255,7 +267,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   T=gsl_multimin_fdfminimizer_vector_bfgs2;  // BFGS2 optimizer
   s=gsl_multimin_fdfminimizer_alloc(T,ndim);
 
-  Param par={i0, ai, L, lambda, lambdah, f1, f2, lz, naive, lzhalf};
+  Param par={i0, ai, wgt, qj, L, lambda, lambdah, f1, f2, lz, naive, lzhalf};
 
   my_func.params=&par;
   gsl_vector_set_zero(x);  // initial guess
@@ -290,7 +302,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
     h[l0]=gsl_vector_get(s->x,m++);
     if(naive) continue;
     for(int i=0; i<nsnp; i++) for(int l1=0;l1<L[i];l1++){
-      if(i==i0) J[i][L[i]*l0+l1]=0;
+      if(i==i0 || !qj[i]) J[i][L[i]*l0+l1]=0;
       else 
         J[i][L[i]*l0+l1]=gsl_vector_get(s->x,m++);
     }
@@ -304,7 +316,8 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
 }
 
 
-void f12(int i0, const vector<vector<short> > &si, vector<double> &f1,
+void f12(int i0, const vector<vector<short> > &si, 
+         const vector<double> &wgt, vector<double> &f1,
          vector<vector<double> > &f2, const vector<short> &L, bool naive,
          bool pcount){
 
@@ -329,19 +342,22 @@ void f12(int i0, const vector<vector<short> > &si, vector<double> &f1,
     }
   }
   
+  double wsum=0.0;
   for(int k=0; k<n; k++){
+    wsum += wgt[k];
     short a=si[k][i0];
     if(a==0) continue;
-    f1[a-1]++;
+    f1[a-1] += wgt[k];
     if(naive) continue;
     for(int j=0; j<m; j++){
       if(j==i0) continue;
       short b=si[k][j];
       if(b==0) continue;
-      f2[j][L[j]*(a-1)+b-1]++;
+      f2[j][L[j]*(a-1)+b-1] += wgt[k];
     }
   }
-  int nc = pcount ? n+1 : n;
+  
+  double nc = pcount ? wsum+1 : wsum;
   for(int l0=0; l0<L[i0]; l0++){ 
     f1[l0]/=nc;
     if(naive) continue;

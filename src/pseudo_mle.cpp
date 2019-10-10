@@ -4,8 +4,10 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-List pseudo_mle(NumericMatrix xi, IntegerVector Lv, NumericVector Lambda, 
-                IntegerVector Nprint, IntegerVector Itmax, NumericVector Tol,
+List pseudo_mle(NumericMatrix xi, NumericVector weights,
+                LogicalMatrix qJ, IntegerVector Lv, 
+                NumericVector Lambda, IntegerVector Nprint, 
+                IntegerVector Itmax, NumericVector Tol,
                 LogicalVector Naive, IntegerVector Verbose, 
                 LogicalVector Lzhalf){
   
@@ -15,10 +17,17 @@ List pseudo_mle(NumericMatrix xi, IntegerVector Lv, NumericVector Lambda,
   std::vector<std::vector<short> > sv(n);
   for(int k=0; k<n; k++) for(int i=0; i<m; i++)
     sv[k].push_back(xi(k,i));
+
+  std::vector<double> wgt(n);
+  for(int k=0; k<n; k++)
+    wgt[k] = weights(k);
   
   int nbad=0;
   std::vector<bool> bad(m);
+  std::vector<std::vector<bool> > qj(m);
   for(int i=0; i<m; i++){
+    for(int j=0; j<m; j++)
+      qj[i].push_back(qJ(i,j));
     short xmin=xi(0,i);
     short xmax=xi(0,i);
     for(int k=1; k<n; k++){ 
@@ -48,7 +57,7 @@ List pseudo_mle(NumericMatrix xi, IntegerVector Lv, NumericVector Lambda,
   
   std::vector<std::vector<double> > h(m);
   std::vector<std::vector<std::vector<double> > > J(m);
-  
+
   double lambda = Lambda[0];
   double lambdah = Lambda[1];
   int nprint = Nprint[0];
@@ -58,24 +67,22 @@ List pseudo_mle(NumericMatrix xi, IntegerVector Lv, NumericVector Lambda,
   bool naive = Naive[0];
   bool lzhalf = Lzhalf[0];
   
-  double lkl = 0;
+  double lks = 0;
   double lz = 0;
   for(int i0=0; i0<m; i0++){
     double z=0;
     bool failed=false;
-    lkl += lpr_psl(i0, sv, L, lambda, lambdah, h[i0], J[i0], 
-                   nprint, Imax, tol,
-                   verbose, z, naive, failed, lzhalf);
+    lks += lpr_psl(i0, sv, wgt, qj[i0], L, lambda, lambdah, h[i0], J[i0], 
+                   nprint, Imax, tol, verbose, z, naive, failed, lzhalf);
     if(failed)
       Rcpp::Rcerr << " Warning: failed to converge in pseudo\n";
     lz += z;
     Rcpp::checkUserInterrupt();
   }
-  lkl /= n;
+  lks /= n;
   
   List x = List::create(Named("h") = h, Named("J") = J, 
-                        Named("lkl") = lkl, Named("lz") = lz,
-                        Named("L") = L);
+                        Named("lkh") = lks, Named("lz") = lz, Named("L") = L);
   return x;
 }
 
