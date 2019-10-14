@@ -5,29 +5,28 @@
 #' 
 #' The ouput data frame can be used as input to \code{\link{bbl}}.
 #' 
-#' @param fdata Data frame with factors in columns and a frequency column
-#' @param Freq Integer column index or column name of frequency
+#' @param fdata Data frame with factors in columns 
+#' @param Freq Vector of frequency of each row in \code{fdata}
 #' @return Raw data frame with one row per instances
 #' @examples
 #' Titanic
 #' x <- as.data.frame(Titanic)
 #' head(x)
-#' titanic <- freq2raw(x, Freq='Freq')
+#' titanic <- freq2raw(fdata=x[,1:3], freq=x$Freq)
 #' head(titanic)
 #' @export
-freq2raw <- function(fdata,Freq){
+freq2raw <- function(fdata,freq){
   
-  if(is.character(Freq)) 
-    Freq <- which(colnames(fdata)==Freq)
-  if(length(Freq)==0) stop('No frequency column found')
+  if(length(freq)!=NROW(fdata)) 
+     stop('Frequency length does not match fdata')
   n <- nrow(fdata)
   dat <- NULL
   for(i in 1:n){
-    w <- fdata[rep(i,fdata[i,Freq]),]
+    w <- fdata[rep(i,freq[i]),]
     dat <- rbind(dat, w)
   }
   rownames(dat) <- seq_len(NROW(dat))
-  return(dat[,-Freq])
+  return(dat)
 }
 
 #' Compute Prediction Accuracy

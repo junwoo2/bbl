@@ -4,7 +4,7 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-List pseudo_mle(NumericMatrix xi, NumericVector weights,
+List pseudo_mle(NumericMatrix xi, IntegerVector freq,
                 LogicalMatrix qJ, IntegerVector Lv, 
                 NumericVector Lambda, IntegerVector Nprint, 
                 IntegerVector Itmax, NumericVector Tol,
@@ -18,9 +18,9 @@ List pseudo_mle(NumericMatrix xi, NumericVector weights,
   for(int k=0; k<n; k++) for(int i=0; i<m; i++)
     sv[k].push_back(xi(k,i));
 
-  std::vector<double> wgt(n);
+  std::vector<int> frq(n);
   for(int k=0; k<n; k++)
-    wgt[k] = weights(k);
+    frq[k] = freq(k);
   
   int nbad=0;
   std::vector<bool> bad(m);
@@ -52,6 +52,7 @@ List pseudo_mle(NumericMatrix xi, NumericVector weights,
       }
     }
     sv.push_back(v);
+    frq.push_back(1);
     n++;
   }
   
@@ -72,7 +73,7 @@ List pseudo_mle(NumericMatrix xi, NumericVector weights,
   for(int i0=0; i0<m; i0++){
     double z=0;
     bool failed=false;
-    lks += lpr_psl(i0, sv, wgt, qj[i0], L, lambda, lambdah, h[i0], J[i0], 
+    lks += lpr_psl(i0, sv, frq, qj[i0], L, lambda, lambdah, h[i0], J[i0], 
                    nprint, Imax, tol, verbose, z, naive, failed, lzhalf);
     if(failed)
       Rcpp::Rcerr << " Warning: failed to converge in pseudo\n";

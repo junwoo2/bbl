@@ -52,18 +52,35 @@
 #' cv <- crossval(object=model, method='mf', eps=seq(0.1,0.9,0.1))
 #' plot(cv, type='b')
 #' @export
-crossval <- function(object, lambda=0.1, lambdah=0,
-                     eps=0.9, nfold=5, method='pseudo', 
+crossVal <- function(formula, data, freq=NULL,
+                     lambda=1e-5, lambdah=0, eps=0.9, nfold=5, method='pseudo', 
                      naive=FALSE, use.auc=TRUE, verbose=1, useC=TRUE, 
                      prior.count=TRUE, progress.bar=FALSE, 
                      fixL=FALSE, ...){
   
-  groups <- object@groups
-  Ly <- length(groups)
-  nsample <- NROW(object@data)
-  y <- object@data[,which(object@y==colnames(object@data))]
   
+  cl <- match.call()
+  if(missing(data)) data <- environment(formula)
+  term <- terms(formula, data=data)
+  xlevels <- .getXlevels(term, m=data)
+  m <- length(xlevels)
+  idy <- attributes(term)$response
+  resp <- all.vars(cl)[idy]
+  y <- data[,resp]
+  yx <- data[,c(resp,names(xlevels))]
+  groups <- levels(factor(y))
+  Ly <- length(groups)
+  
+  if(Ly==1) warning('Only one response group in data')
   if(Ly!=2) use.auc <- FALSE
+  
+  if(!is.null(freq)){
+    if(!all.equal(freq, as.integer(freq))) stop('Non-integer freq')
+    if(length(freq)!=NROW(data))
+      stop('Length of freq does not match data')
+    yx <- freq2raw(fdata=yx, freq=freq)
+    y <- yx[,resp]
+  }
   
   if(naive){
     method <- 'mf'
@@ -81,7 +98,10 @@ crossval <- function(object, lambda=0.1, lambdah=0,
   }
   else stop('Unknown method')
   
-  res <- NULL
+  res <- NULL    # data frame of cv result
+  bbopt <- NULL  # optimally trained bbl object
+  maxscore <- -Inf
+  regstar <- 0
   for(reg in reglist){
     if(is.null(lambdah)) regh <- reg
     else regh <- lambdah
@@ -102,7 +122,7 @@ crossval <- function(object, lambda=0.1, lambdah=0,
       for(iy in seq_len(Ly)){
         idy <- which(y==groups[iy])
         ns <- length(idy)
-        nval <- max(1,floor(ns/nfold))
+        nval <- max(1,ceiling(ns/nfold))
         imax <- k*nval
         if(imax > ns) imax <- ns
         if(imax < 1) imax <- 1
@@ -112,39 +132,44 @@ crossval <- function(object, lambda=0.1, lambdah=0,
         itrain <- c(itrain, iytrain)
       }
       if(sum(is.na(ival)>0) | sum(is.na(itrain)>0)) stop('error in crossval')
-      obval <- '['(x=object, i=ival, remove.const=FALSE)
-      obtrain <- '['(x=object, i=itrain, remove.const=FALSE)
+      dval <- yx[ival, ,drop=FALSE]
+      dtrain <- yx[itrain, ,drop=FALSE]
       if(method=='pseudo')
-        obtrain <- train(object=obtrain, method=method, lambda=reg,  
-                         naive=naive, verbose=verbose-1, lambdah=regh,
-                         fixL=fixL, ...)
+        obtrain <- bbl(formula, data=dtrain, method=method, lambda=reg, 
+                       verbose=verbose-1, lambdah=regh, fixL=fixL, ...)
       else
-        obtrain <- train(object=obtrain, method=method, eps=reg,
-                         naive=naive, verbose=verbose-1, lambdah=lambdah,
-                         fixL=fixL, ...)
-      pr <- predict(object=obtrain, newdata=obval@data, logit=!use.auc,
-                    useC=useC, progress.bar=progress.bar, 
-                    verbose=verbose-1, naive=naive)
-      pred <- rbind(pred, cbind(data.frame(y=y[ival], pr)))
+        obtrain <- bbl(formula, data=dtrain, method=method, eps=reg, 
+                       verbose=verbose-1, lambdah=lambdah, fixL=fixL, ...)
+      pr <- predict(object=obtrain, newdata=dval, logit=!use.auc, useC=useC, 
+                    progress.bar=progress.bar, verbose=verbose-1)
+      pred <- rbind(pred, cbind(yx[ival,1,drop=FALSE], pr))
     }
-    if(use.auc){ auc <- pROC::roc(response=pred$y, levels=groups, 
+    if(use.auc){
+      score <- pROC::roc(response=pred[,1], levels=groups, 
                                predictor=pred[,3], direction='<')$auc
-      if(verbose>0) cat(' AUC = ',auc,'\n',sep='')
+      if(verbose>0) cat(' AUC = ',score,'\n',sep='')
     }
     else{
-      yhat <- groups[apply(pred[,-1],1,which.max)]
-      score <- mean(pred$y==yhat)
+      score <- mean(pred[,1]==pred$yhat)
       if(verbose>0) cat(' Prediction score = ',score,'\n',sep='')
     }
     if(method=='pseudo'){
-      if(use.auc) rx <- data.frame(lambda=reg, auc=auc)
+      if(use.auc) rx <- data.frame(lambda=reg, auc=score)
       else rx <- data.frame(lambda=reg, score=score)
     } else{
-      if(use.auc) rx <- data.frame(epsilon=reg, auc=auc)
+      if(use.auc) rx <- data.frame(epsilon=reg, auc=score)
       else rx <- data.frame(epsilon=reg, score=score)
+    }
+    if(score > maxscore){
+      maxscore <- score
+      regstar <- reg
+      bbopt <- obtrain
     }
     res <- rbind(res, rx)
   }
   
-  return(res)
+  cv <- c(bbopt, list(regstar=regstar, maxscore=maxscore, cvframe=res))
+  class(cv) <- 'cv.bbl'
+  
+  return(cv)
 }

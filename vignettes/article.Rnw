@@ -402,96 +402,160 @@ If response is binary, the score defined by Eq.~(\ref{eq:s}) is sensitive to mar
 the two groups via Eq.~(\ref{eq:F}). 
 The area under curve (AUC) of receiver operating characteristic is a more robust performance measure
 independent of probability cutoff. In \pkg{bbl}, the prediction score
-given by Eqs.~(\ref{eq:s}) and (\ref{eq:yhat}) is used in general with the option to use AUC for binary
-response using R package \pkg{pROC} \citep{proc}.
+given by Eqs.~(\ref{eq:s}) and (\ref{eq:yhat}) is used in general with the option 
+to use AUC for binary response using R package \pkg{pROC} \citep{proc}.
 
 \section{Software Usage and Tests}
 \label{sec:usage}
-\subsection[Titanic data]{\code{Titanic} data}
-We first illustrate BB inference for full multilevel response data sets by \pkg{bbl} using the base 
-\proglang{R} data \code{Titanic}:
+\subsection[Logistic regression]{Logistic regression}
+\label{sec:lr}
+To motivate the use of \pkg{bbl} and highlight differences, we first 
+consider the use of logistic regression using \code{glm}. 
+We use the base \proglang{R} data \code{Titanic} as an example:
 %
 <<data>>=
 titanic <- as.data.frame(Titanic)
-head(titanic)
+titanic
+freq <- titanic$Freq
 @
 %
-The frequency data can be converted into raw data (one observation per row) using the utility function
-\code{freq2raw} in \pkg{bbl}:
+Input data can either be of the form above with unique combinations of predictors
+in each along with frequency, or raw data (one observation per row) we generate
+using the utility function
+\code{freq2raw}:
 %
 <<raw>>=
 library(bbl)
-titanic <- freq2raw(titanic, Freq='Freq')
-head(titanic)
-summary(titanic)
+titanic_raw <- freq2raw(titanic[,1:4], freq=freq)
+head(titanic_raw)
+summary(titanic_raw)
 @
 %
-We first divide the sample into train and test sets,
-%
-<<div>>=
-set.seed(158)
-nsample <- nrow(titanic)
-flag <- rep(TRUE, nsample)
-flag[sample(nsample, nsample/2)] <- FALSE
-dtrain <- titanic[flag,]
-dtest <- titanic[!flag,]
-@
-%
-and apply linear regression using \code{glm}:
+We first apply logistic regression using \code{glm}:
 %
 <<lr>>=
-fit <- glm(Survived ~ ., family=binomial(), data=dtrain)
-prl <- predict(fit, newdata=dtest)
+gfit0 <- glm(Survived ~ Class + Sex + Age, family=binomial(), data=titanic,
+             weights=freq)
+gfit0
+summary(fit)
+@
+%
+The fit above included linear terms only. It indicates that survival was strongly
+associated with class status, sex (female heavily favored), and children.
+
+The fit below includes all interactions in the \code{glm} model:
+%
+<<glm2>>=
+gfit1 <- glm(Survived ~ (Class + Sex + Age)^2, family=binomial, data=titanic,
+            weights=freq)
+summary(gfit1)
+@
+%
+The summary of interacting model shows that class status association arose from
+the linear effect of being \code{Crew} and interaction effect of 
+\code{Female} \code{3rd}-class passengers.
+
+To illustrate training and prediction, we divide the sample into 
+train and test sets:
+%
+<<div>>=
+set.seed(159)
+nsample <- NROW(titanic_raw)
+flag <- rep(TRUE, nsample)
+flag[sample(nsample, nsample/2)] <- FALSE
+dtrain <- titanic_raw[flag,]
+dtest <- titanic_raw[!flag,]
+@
+%
+%
+We train the \code{glm} model with full interactions and use for
+prediction on test data, omitting interaction \code{Age:Class} because it was 
+rank-deficient:
+<<lr>>=
+gfit2 <- glm(Survived ~ Class*Sex + Sex*Age, family=binomial(), data=dtrain)
+prl <- predict(gfit2, newdata=dtest)
 pROC::roc(response=dtest$Survived, predictor=prl, direction='<')$auc
 @
 %
 
-The BB inference in \pkg{bbl} uses objects of \code{S4} class \code{bbl} 
-instantiated by input training data:
+\subsection[Boltzmann Bayes learning]{Boltzmann Bayes learning}
+
+The logistic regression shown in the previous subsection allows for
+the inference and significance testing of linear and interaction coefficients 
+in association with the response variable.
+However, the regression fit does not provide information regarding 
+the source of association. In the examples in Sec.~\ref{sec:lr},
+the survival of Titanic passengers was seen to be associated with
+being \code{Crew} members and \code{Female} \code{3rd}-class passengers.
+The corersponding linear regression coefficients, which have the same functional form
+as in Eq.~(\ref{eq:F}), are measures of the {\it difference} in enrichment in the
+two response groups. The two terms whose difference give the linear regression
+coefficient remain unknown. How were the sub-groups distributed among survivor and 
+non-survivor groups? Were there very few \code{Female} \code{3rd}-class passengers
+among the survivor group compared to non-survivor, or were they found in both 
+groups but more so among non-survivors?
+
+The BB inference estimates the individual distributions of predictors in 
+response groups separately and subsequently combines them to make predictions.
+For binary response, this inference provides estimates of the two coefficients whose 
+difference corresponds to linear regression outcome. For multinomial response,
+the information content of BB inference outcome grows linearly with the number of groups,
+while that of \code{glm}-based regression remains the same.
+
+With this comparison in mind, we use the same Titanic data below to illustrate
+the BB inference. As in \code{glm}, the package \code{bbl} uses formula input to 
+train an \code{S3} object of class \code{bbl}: 
 %
 <<class>>=
-model <- bbl(data=dtrain, y='Survived')
-model
+bfit0 <- bbl(Survived ~ Age + Sex + Class, data=titanic, weights=freq)
 @
 %
-The argument \code{y} specifies the column name of the response variable.
-
-We first try a single pseudo-likelihood inference by
+which by default triggers a single pseudo-likelihood inference, solving
+the maximum pseudo-likelihood equations (\ref{eq:partial}).
+The \code{print} method on \code{bbl} shows the structure of model
+and (subsets) of inferred parameters:
 %
-<<ps>>=
-model <- train(model, method='pseudo', lambda=0)
-model@h
-head(model@J,n=1)
+<<print>>=
+bfit0
 @
 %
-The function \code{train} here solves the maximum pseudo-likelihood equations (\ref{eq:partial}) 
-using training data and stores the inferred parameters
-$h_i^{(y)}$ and $J_{ij}^{(y)}$ as lists with argument order $(y,i)$ and 
-$(y,i,j)$, respectively. 
-The inner-most elements of the lists
-are vectors and matrices of dimension $L_i-1=\text{\code{c(3,1,1)}}$ and $(L_i-1,L_j-1)$, respectively.
+where \code{dh} and \code{dJ} represent parameters $\Delta h_i^{(y)}
+=h_i^{(y)}-h_i^{({\rm pooled})}$ and
+$\Delta J_{ij}^{(y)}=J_{ij}^{(y)}-J_{ij}^{({\rm pooled})}$; i.e., 
+individual group parameters offset by the pooled values.
+Internally, the parameters $h_i^{(y)}$ and $J_{ij}^{(y)}$ are stored
+as lists with argument order $(y,i)$ and $(y,i,j)$, respectively. 
+The inner-most elements of the lists are vectors and matrices of dimension 
+$L_i-1=\text{\code{c(3,1,1)}}$ and $(L_i-1,L_j-1)$, respectively.
+The \code{summary} method on \code{bbl} object prints out parameters
+and their significance test outcomes under the naive Bayes approximation
+(no interactions) as a rough overview of model under consideration:
+%
+<<summary>>=
+summary(bfit0)
+@
+%
 
-We predict the survival probability of test individuals using the trained model:
+We now fit a \code{bbl} model on training set and make predictions on test data:
 %
 <<survival>>=
-pr <- predict(model, newdata=dtest, logit=FALSE)
+bfit <- bbl(Survived ~ (Age + Sex + Class)^2, data=dtrain)
+pr <- predict(bfit, newdata=dtest, logit=FALSE)
 head(pr)
 pROC::roc(response=dtest$Survived, predictor=pr[,2], direction='<')$auc
 @
 %
-Here, Eq.~(\ref{eq:py}) was used with ${\bf x}$ from the supplied \code{newdata}.
-The \code{newdata} can either contain the response column as in the above
-example (the program will disregard it), or only the predictor columns. 
-The predictor columns must either have the same order as in the training 
-data or be labeled with column names.
+Here, Eq.~(\ref{eq:py}) was used with ${\bf x}$ from the supplied 
+\code{newdata}. The \code{predict} method returns a list of data frame 
+containing predicted group probabilities and the most likely group for each row.
 
 One can do cross-validation applied to \code{dtrain} data, dividing it into 
 \code{nfold = 5} train/validation subsets of 4:1 proportion, and aggregating
 predictions for validation sets using the trained model:
 %
 <<cv>>=
-cv <- crossval(model, method='pseudo', lambda=10^seq(-6,-2,0.5),
-               verbose=0)
+cv <- crossval(Survived ~ (Age + Sex + Class)^2, data=dtrain, 
+               method='pseudo', lambda=10^seq(-6,-2,0.5), verbose=0)
 cv
 @
 %

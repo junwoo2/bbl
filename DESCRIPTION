@@ -7,7 +7,7 @@ Authors@R: c(person("Jun","Woo",role=c("aut","cre"),
              person("Jinhua","Wang", role=c("ctb")))
 Maintainer: Jun Woo <jwoo@umn.edu>
 Depends: R (>= 3.6.0)
-Imports: methods, stats, utils, Rcpp (>= 0.12.16), pROC
+Imports: methods, stats, utils, Rcpp (>= 0.12.16), pROC, RColorBrewer
 Description: Supervised learning using Boltzmann Bayes model inference, 
     which extends naive Bayes model to include interactions. Enables 
     classification of data into multiple response groups based on a large 

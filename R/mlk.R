@@ -62,9 +62,9 @@
 #' points(x=unlist(par$J), y=unlist(mf$J), col='green')
 #' @export
 
-mlestimate <- function(xi, weights=1, qJ=NULL, method='pseudo', L=NULL, 
-                    lambda=0, lambdah=0, symmetrize=TRUE, eps=0.9, 
-                    nprint=100, itmax=10000, tolerance=1e-6, verbose=1, 
+mlestimate <- function(xi, freq=NULL, qJ=NULL, method='pseudo', L=NULL, 
+                    lambda=1e-5, lambdah=0, symmetrize=TRUE, eps=0.9, 
+                    nprint=100, itmax=1000, tolerance=1e-5, verbose=1, 
                     prior.count=TRUE, naive=FALSE, lz.half=FALSE){
   
   if(is.null(lambdah))
@@ -97,9 +97,9 @@ mlestimate <- function(xi, weights=1, qJ=NULL, method='pseudo', L=NULL,
     stop('Input data to mlestimate must be numeric and non-negative')
   
   nsample <- NROW(xi)
-  if(length(weights)==1) weights <- rep(weights[1], nsample)
-  else if(length(weights)!=nsample) 
-    stop('Error in size of weights')
+  if(is.null(freq)) freq <- rep(1L, nsample)
+  else if(length(freq)!=nsample) 
+    stop('Length of freq does not match data')
   
   if(method=='pseudo'){
     Lambda <- c(lambda, lambdah)
@@ -109,13 +109,13 @@ mlestimate <- function(xi, weights=1, qJ=NULL, method='pseudo', L=NULL,
     Verbose <- c(verbose)
     Lzhalf <- c(lz.half)
     Naive <- c(naive)
-    theta <- pseudo_mle(xi, weights, qJ, L, Lambda, Nprint, Itmax, Tol, 
+    theta <- pseudo_mle(xi, freq, qJ, L, Lambda, Nprint, Itmax, Tol, 
                         Naive, Verbose, Lzhalf)
     L <- theta$L
   }
   else if(method=='mf'){
     Eps <- c(eps)
-    theta <- mfwrapper(xi, weights, qJ, L, Eps)
+    theta <- mfwrapper(xi, freq, qJ, L, Eps)
   }
   else stop('unknown method in mlestimate')
 

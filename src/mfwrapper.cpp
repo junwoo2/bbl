@@ -4,7 +4,7 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-List mfwrapper(NumericMatrix xi, NumericVector weights, NumericMatrix qJ,
+List mfwrapper(NumericMatrix xi, IntegerVector freq, NumericMatrix qJ,
                IntegerVector Lv, NumericVector Eps){
   
   int n = xi.nrow();
@@ -17,9 +17,9 @@ List mfwrapper(NumericMatrix xi, NumericVector weights, NumericMatrix qJ,
       sv[k].push_back(xi(k,i));
   }
   
-  std::vector<double> wgt(n);
+  std::vector<int> frq(n);
   for(int k=0; k<n; k++)
-    wgt[k] = weights(k);
+    frq[k] = freq(k);
   
   int mL=L.size();
   std::vector<std::vector<double> > hp(mL);
@@ -27,7 +27,8 @@ List mfwrapper(NumericMatrix xi, NumericVector weights, NumericMatrix qJ,
   
   double eps = Eps[0];
   double lkl = 0;
-  invC(sv, wgt, L, lkl, hp, Jp, eps);
+  double lnz = 0;
+  invC(sv, frq, L, lkl, lnz, hp, Jp, eps);
   
   std::vector<std::vector<double> > h(m);
   std::vector<std::vector<std::vector<double> > > J(m);
@@ -46,6 +47,6 @@ List mfwrapper(NumericMatrix xi, NumericVector weights, NumericMatrix qJ,
   }
     
   List x = List::create(Named("h") = h, Named("J") = J, Named("lkh") = lkl, 
-                        Named("lz")= lkl);
+                        Named("lz")= lnz);
   return x;
 }

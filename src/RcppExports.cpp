@@ -6,28 +6,28 @@
 using namespace Rcpp;
 
 // mfwrapper
-List mfwrapper(NumericMatrix xi, NumericVector weights, NumericMatrix qJ, IntegerVector Lv, NumericVector Eps);
-RcppExport SEXP _bbl_mfwrapper(SEXP xiSEXP, SEXP weightsSEXP, SEXP qJSEXP, SEXP LvSEXP, SEXP EpsSEXP) {
+List mfwrapper(NumericMatrix xi, IntegerVector freq, NumericMatrix qJ, IntegerVector Lv, NumericVector Eps);
+RcppExport SEXP _bbl_mfwrapper(SEXP xiSEXP, SEXP freqSEXP, SEXP qJSEXP, SEXP LvSEXP, SEXP EpsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< NumericMatrix >::type xi(xiSEXP);
-    Rcpp::traits::input_parameter< NumericVector >::type weights(weightsSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type freq(freqSEXP);
     Rcpp::traits::input_parameter< NumericMatrix >::type qJ(qJSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type Lv(LvSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type Eps(EpsSEXP);
-    rcpp_result_gen = Rcpp::wrap(mfwrapper(xi, weights, qJ, Lv, Eps));
+    rcpp_result_gen = Rcpp::wrap(mfwrapper(xi, freq, qJ, Lv, Eps));
     return rcpp_result_gen;
 END_RCPP
 }
 // pseudo_mle
-List pseudo_mle(NumericMatrix xi, NumericVector weights, LogicalMatrix qJ, IntegerVector Lv, NumericVector Lambda, IntegerVector Nprint, IntegerVector Itmax, NumericVector Tol, LogicalVector Naive, IntegerVector Verbose, LogicalVector Lzhalf);
-RcppExport SEXP _bbl_pseudo_mle(SEXP xiSEXP, SEXP weightsSEXP, SEXP qJSEXP, SEXP LvSEXP, SEXP LambdaSEXP, SEXP NprintSEXP, SEXP ItmaxSEXP, SEXP TolSEXP, SEXP NaiveSEXP, SEXP VerboseSEXP, SEXP LzhalfSEXP) {
+List pseudo_mle(NumericMatrix xi, IntegerVector freq, LogicalMatrix qJ, IntegerVector Lv, NumericVector Lambda, IntegerVector Nprint, IntegerVector Itmax, NumericVector Tol, LogicalVector Naive, IntegerVector Verbose, LogicalVector Lzhalf);
+RcppExport SEXP _bbl_pseudo_mle(SEXP xiSEXP, SEXP freqSEXP, SEXP qJSEXP, SEXP LvSEXP, SEXP LambdaSEXP, SEXP NprintSEXP, SEXP ItmaxSEXP, SEXP TolSEXP, SEXP NaiveSEXP, SEXP VerboseSEXP, SEXP LzhalfSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< NumericMatrix >::type xi(xiSEXP);
-    Rcpp::traits::input_parameter< NumericVector >::type weights(weightsSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type freq(freqSEXP);
     Rcpp::traits::input_parameter< LogicalMatrix >::type qJ(qJSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type Lv(LvSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type Lambda(LambdaSEXP);
@@ -37,7 +37,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< LogicalVector >::type Naive(NaiveSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type Verbose(VerboseSEXP);
     Rcpp::traits::input_parameter< LogicalVector >::type Lzhalf(LzhalfSEXP);
-    rcpp_result_gen = Rcpp::wrap(pseudo_mle(xi, weights, qJ, Lv, Lambda, Nprint, Itmax, Tol, Naive, Verbose, Lzhalf));
+    rcpp_result_gen = Rcpp::wrap(pseudo_mle(xi, freq, qJ, Lv, Lambda, Nprint, Itmax, Tol, Naive, Verbose, Lzhalf));
     return rcpp_result_gen;
 END_RCPP
 }

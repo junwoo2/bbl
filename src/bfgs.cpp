@@ -112,9 +112,9 @@ double lnl_psl(const gsl_vector *v,void *params){  // evaluates log likelihood
   for(int n=0;n<nind;n++){
     double lz=0;
     double p=pan2(nsnp,i0,L,(par->ai)[n],h1,J1,lz, par->naive, par->lzhalf);
-    ln += -log(p)*(par->wgt)[n];
+    ln += -log(p)*(par->frq)[n];
     par->lzp += lz;
-    wsum += (par->wgt)[n];
+    wsum += (par->frq)[n];
   }
   ln /= wsum;
   par->lzp /= wsum;
@@ -176,14 +176,14 @@ void dlnl_psl(const gsl_vector *v,void *params,gsl_vector *df){   // first deriv
 
   double wsum = 0.0;
   for(int k=0;k<nind;k++)
-    wsum += (par->wgt)[k];
+    wsum += (par->frq)[k];
   
   for(int k=0;k<nind;k++){
     vector<double> peff(L[i0]);
     double lz=0;
     pan3(peff, nsnp, i0, L, (par->ai)[k], h1, J1, lz, par->naive);
     for(int l0=0;l0<L[i0];l0++){
-      double f=peff[l0]*(par->wgt)[k]/wsum;
+      double f=peff[l0]*(par->frq)[k]/wsum;
       s1[l0]+= f;
       if(par->naive) continue;
       for(int j=0;j<nsnp;j++){
@@ -229,7 +229,7 @@ void ln_dln_psl(const gsl_vector *x,void *params,double *f,gsl_vector *df){
 }
 
 double lpr_psl(int i0, const vector<vector<short> > &ai, 
-               const vector<double> &wgt, const vector<bool> &qj,
+               const vector<int> &frq, const vector<bool> &qj,
                const vector<short> &L, double lambda,
                double lambdah, vector<double> &h, 
                vector<vector<double> > &J, int nprint, 
@@ -244,7 +244,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   vector<double> f1(nsnp);
   vector<vector<double> > f2(nsnp);
 
-  f12(i0, ai, wgt, f1, f2, L, naive, false);
+  f12(i0, ai, frq, f1, f2, L, naive, false);
 
   const gsl_multimin_fdfminimizer_type *T;
   gsl_multimin_fdfminimizer *s;
@@ -267,7 +267,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   T=gsl_multimin_fdfminimizer_vector_bfgs2;  // BFGS2 optimizer
   s=gsl_multimin_fdfminimizer_alloc(T,ndim);
 
-  Param par={i0, ai, wgt, qj, L, lambda, lambdah, f1, f2, lz, naive, lzhalf};
+  Param par={i0, ai, frq, qj, L, lambda, lambdah, f1, f2, lz, naive, lzhalf};
 
   my_func.params=&par;
   gsl_vector_set_zero(x);  // initial guess
@@ -317,7 +317,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
 
 
 void f12(int i0, const vector<vector<short> > &si, 
-         const vector<double> &wgt, vector<double> &f1,
+         const vector<int> &frq, vector<double> &f1,
          vector<vector<double> > &f2, const vector<short> &L, bool naive,
          bool pcount){
 
@@ -344,16 +344,16 @@ void f12(int i0, const vector<vector<short> > &si,
   
   double wsum=0.0;
   for(int k=0; k<n; k++){
-    wsum += wgt[k];
+    wsum += frq[k];
     short a=si[k][i0];
     if(a==0) continue;
-    f1[a-1] += wgt[k];
+    f1[a-1] += frq[k];
     if(naive) continue;
     for(int j=0; j<m; j++){
       if(j==i0) continue;
       short b=si[k][j];
       if(b==0) continue;
-      f2[j][L[j]*(a-1)+b-1] += wgt[k];
+      f2[j][L[j]*(a-1)+b-1] += frq[k];
     }
   }
   

@@ -9,8 +9,8 @@
 
 using namespace std;
 
-void invC(const vector<vector<short> > &ai, const vector<double> &wgt,
-          const vector<short> &L, double &lnz, vector<vector<double> > &h,
+void invC(const vector<vector<short> > &ai, const vector<int> &frq,
+          const vector<short> &L, double &E, double &lnz, vector<vector<double> > &h,
           vector<vector<vector<double> > > &J, double eps){
 
   int nsnp=L.size();
@@ -18,7 +18,7 @@ void invC(const vector<vector<short> > &ai, const vector<double> &wgt,
   vector<vector<double> > f1(nsnp);
   vector<vector<vector<double> > > f2(nsnp);
   for(int i=0; i<nsnp; i++){
-    f12(i, ai, wgt, f1[i], f2[i], L, false, true);
+    f12(i, ai, frq, f1[i], f2[i], L, false, true);
     ndim += L[i];
   }
 
@@ -85,6 +85,21 @@ void invC(const vector<vector<short> > &ai, const vector<double> &wgt,
       idx++;
     }
   }
+  E=0;
+  int nind=ai.size();
+  for(int k=0; k<nind; k++){
+    for(int i=0; i<nsnp; i++){
+      int a0=ai[k][i];
+      if(a0==0) continue;
+      E += h[i][a0-1];
+      for(int j=i+1;j<nsnp;j++){
+        int a1=ai[k][j];
+        if(a1>0)
+          E += J[i][j][L[j]*(a0-1)+a1-1];
+      }
+    }
+  }
+  E = E/nind - lnz;
 
   if(eps>0){
     gsl_matrix_free(A);
