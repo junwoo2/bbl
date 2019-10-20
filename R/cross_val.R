@@ -52,20 +52,42 @@
 #' cv <- crossval(object=model, method='mf', eps=seq(0.1,0.9,0.1))
 #' plot(cv, type='b')
 #' @export
-crossVal <- function(formula, data, freq=NULL,
-                     lambda=1e-5, lambdah=0, eps=0.9, nfold=5, method='pseudo', 
-                     naive=FALSE, use.auc=TRUE, verbose=1, useC=TRUE, 
-                     prior.count=TRUE, progress.bar=FALSE, 
-                     fixL=FALSE, ...){
+crossVal <- function(formula, data, freq=NULL, novar.ok=FALSE, 
+                     lambda=1e-5, lambdah=0, eps=0.9, nfold=5, 
+                     method='pseudo', naive=FALSE, use.auc=TRUE, 
+                     verbose=1, prior.count=TRUE, 
+                     progress.bar=FALSE, storeOpt=TRUE, ...){
   
   
   cl <- match.call()
   if(missing(data)) data <- environment(formula)
+  if(!is.null(freq)){
+    if(length(freq)!=NROW(data))
+      stop('Length of freq does not match data')
+    zero <- freq==0
+    data <- data[!zero,]
+    freq <- freq[!zero]   # remove rows with zero freq
+  }
+# data <- as.data.frame(lapply(data, function(x) if(is.numeric(x)) factor(x)))
   term <- terms(formula, data=data)
-  xlevels <- .getXlevels(term, m=data)
-  m <- length(xlevels)
   idy <- attributes(term)$response
-  resp <- all.vars(cl)[idy]
+  vars <- as.character(attributes(term)$variables)
+  resp <- vars[[idy+1]]
+  vars <- vars[!(vars %in% c('list',resp))]
+# xlevels <- .getXlevels(term, m=data)
+  xlevels <- getxlevels(vars, data=data)
+  formula <- formula(term)
+  for(i in seq_along(xlevels)){
+    if(length(xlevels[[i]])==1){
+      mesg <- paste0('Predictor ',names(xlevels)[i],' has one level')
+      if(novar.ok)
+        warning(mesg)
+      else
+        stop(mesg)
+    }
+  }
+  m <- length(xlevels)
+
   y <- data[,resp]
   yx <- data[,c(resp,names(xlevels))]
   groups <- levels(factor(y))
@@ -131,18 +153,25 @@ crossVal <- function(formula, data, freq=NULL,
         ival <- c(ival, iyval)
         itrain <- c(itrain, iytrain)
       }
-      if(sum(is.na(ival)>0) | sum(is.na(itrain)>0)) stop('error in crossval')
+      if(sum(is.na(ival)>0) | sum(is.na(itrain)>0)) 
+        stop('Sample size too small for nfold requested')
       dval <- yx[ival, ,drop=FALSE]
       dtrain <- yx[itrain, ,drop=FALSE]
       if(method=='pseudo')
-        obtrain <- bbl(formula, data=dtrain, method=method, lambda=reg, 
-                       verbose=verbose-1, lambdah=regh, fixL=fixL, ...)
+        obtrain <- bbl(formula, data=dtrain, xlevels=xlevels, 
+                       method=method, novarOk=TRUE, 
+                       testNull=FALSE, lambda=reg, 
+                       verbose=verbose-1, lambdah=regh, ...)
       else
-        obtrain <- bbl(formula, data=dtrain, method=method, eps=reg, 
-                       verbose=verbose-1, lambdah=lambdah, fixL=fixL, ...)
-      pr <- predict(object=obtrain, newdata=dval, logit=!use.auc, useC=useC, 
-                    progress.bar=progress.bar, verbose=verbose-1)
-      pred <- rbind(pred, cbind(yx[ival,1,drop=FALSE], pr))
+        obtrain <- bbl(formula, data=dtrain, xlevels=xlevels,
+                       method=method, novarOk=TRUE, 
+                       testNull=FALSE, eps=reg, 
+                       verbose=verbose-1, lambdah=lambdah, ...)
+
+      pr <- predict(object=obtrain, newdata=dval, logit=!use.auc,
+                          progress.bar=progress.bar, verbose=verbose-1)
+      yxv <- data.frame(ytrue=factor(yx[ival,1],levels=groups))
+      pred <- rbind(pred, cbind(yxv, pr))
     }
     if(use.auc){
       score <- pROC::roc(response=pred[,1], levels=groups, 
@@ -163,7 +192,7 @@ crossVal <- function(formula, data, freq=NULL,
     if(score > maxscore){
       maxscore <- score
       regstar <- reg
-      bbopt <- obtrain
+      if(storeOpt) bbopt <- obtrain
     }
     res <- rbind(res, rx)
   }
@@ -172,4 +201,25 @@ crossVal <- function(formula, data, freq=NULL,
   class(cv) <- 'cv.bbl'
   
   return(cv)
+}
+
+getxlevels <- function(vars, data){
+  
+  m <- length(vars)
+  xlevels <- vector('list',m)
+  names(xlevels) <- vars
+  for(i in seq_along(vars)){
+    if(!vars[i] %in% colnames(data)) 
+      stop(paste0("'",vars[i],"' not in data"))
+    v <- data[,vars[i]]
+    if(is.factor(v) | is.character(v)){
+      lv <- levels(factor(v))
+      xlevels[[i]] <- lv[order(lv)]
+    }
+    else{
+      v <- unique(v)
+      xlevels[[i]] <- v[order(v)]
+    }
+  }
+  return(xlevels)
 }

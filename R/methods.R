@@ -21,22 +21,22 @@ print.bbl <- function(x, showcoeff=TRUE, maxcoeff=3L, ...){
     maxi <- min(maxcoeff, nvar)
     for(i in seq_len(maxi)){
       for(iy in seq_len(Ly)){
-        cat('dh^(',x$groups[iy],')_[',names(predictors)[i],']: \n',sep='')
+        cat('dh_[',names(predictors)[i],']^(',x$groups[iy],'): \n',sep='')
         print(hj$h[[iy]][[i]]-hj$h0[[i]])
         cat('\n')
       }
     }
-    if(maxi < nvar) print('...') else cat('\n')
+    if(maxi < nvar) cat('...\n') else cat('\n')
     for(i in seq_len(maxi-1)) for(j in seq(from=i+1,to=maxi)){
       if(!(x$qJ)[i,j]) next()
       for(iy in seq_len(Ly)){
-        cat('dJ^(',x$groups[iy],')_[',names(predictors)[i],',',
-            names(predictors)[j],']: \n',sep='')
+        cat('dJ_[',names(predictors)[i],',',
+            names(predictors)[j],']^(',x$groups[iy],'): \n',sep='')
         print(hj$J[[iy]][[i]][[j]]-hj$J0[[i]][[j]])
         cat('\n')
       }
     }
-    if(maxi < nvar) print('...') else cat('\n')
+    if(maxi < nvar) cat('...\n') else cat('\n')
   }
 }
 
@@ -51,6 +51,7 @@ summary.bbl <- function(object, prior.count=1, ...){
   
   naive <- sum(object$qJ)==0  # no interaction
   xlevels <- object$xlevels
+  numericx <- unlist(lapply(xlevels, FUN=is.numeric))
   data <- object$model
   y <- data[,object$groupname]
   x <- data[,names(xlevels)]
@@ -70,31 +71,67 @@ summary.bbl <- function(object, prior.count=1, ...){
     
   ntot <- sum(freq)
   for(i in seq_along(xlevels)){
-    
-    f0 <- rep(0, length(xlevels[[i]]))  # pooled inference
-    names(f0) <- xlevels[[i]]
-    for(w in xlevels[[i]])
-      f0[w] <- sum((data[,names(xlevels)[i]]==w)*freq)
-    f0 <- (f0 + prior.count)/(ntot + prior.count)
-    h0 <- log(f0[-1]/f0[1])
+    Li <- length(xlevels[[i]])
+    if(numericx[i]) nx <- 1
+    else nx <- Li
+    f0 <- rep(0, nx)  # pooled inference
+    if(numericx[i]){ 
+      names(f0) <- 'Numeric'
+      for(w in xlevels[[i]])
+        f0 <- f0 + w*(sum((data[,names(xlevels)[i]]==w)*freq) +
+                      prior.count/Li)
+    }
+    else{ 
+      names(f0) <- xlevels[[i]]
+      for(w in xlevels[[i]])
+        f0[w] <- sum((data[,names(xlevels)[i]]==w)*freq)
+      f0 <- f0 + prior.count/Li
+    }
+    f0 <- f0 /(ntot + prior.count)
+    if(numericx[i])
+      h0 <- nr(fu=fu, dfu=dfu, L=Li, xav=f0)
+    else
+      h0 <- log(f0[-1]/f0[1])
     
     L <- 0
     for(iy in object$groups){
       ny <- sum(freq[y==iy])
-      fv <- rep(0,length(xlevels[[i]]))
-      names(fv) <- xlevels[[i]]
-      for(w in xlevels[[i]])
-        fv[w] <- sum((data[y==iy,names(xlevels)[i]]==w)*freq[y==iy])
-#     f <- table(data[y==iy,names(xlevels)[i]])
-      fv <- (fv + prior.count)/(ny+prior.count)
-#     fv <- fv/sum(fv)
-      h[[iy]][[i]] <- log(fv[-1]/fv[1]) - h0
-      names(h[[iy]][[i]]) <- xlevels[[i]][-1]
-      L <- L+ ny*sum(fv*log(fv))
+      fv <- rep(0,nx)
+      if(numericx[i]){
+        names(fv) <- 'Numeric'
+        for(w in xlevels[[i]])
+          fv <- fv + w*(sum((data[y==iy,names(xlevels)[i]]==w)*freq[y==iy])+
+                        prior.count/Li)
+      }
+      else{
+        names(fv) <- xlevels[[i]]
+        for(w in xlevels[[i]])
+          fv[w] <- sum((data[y==iy,names(xlevels)[i]]==w)*freq[y==iy])
+        fv <- fv + prior.count/Li
+      }
+      fv <- fv /(ny+prior.count)
+      if(numericx[i])
+        hi <- nr(f=fu, df=dfu, L=Li, xav=fv)
+      else{
+        h[[iy]][[i]] <- log(fv[-1]/fv[1])
+        names(h[[iy]][[i]]) <- xlevels[[i]][-1]
+      }
+      if(numericx[i]){
+        lzi <- log((1-exp(Li*hi))/(1-exp(hi)))
+        L <- L + ny*(hi*fv - lzi)
+        h[[iy]][[i]] <- hi - h0
+        names(h[[iy]][[i]]) <- 'Numeric'
+      }
+      else L <- L+ ny*sum(fv*log(fv))
     }
-    dev[i] <- L - ntot*sum(f0*log(f0))
+    if(numericx[i]){ 
+      lz0 <- log((1-exp(Li*h0))/(1-exp(h0)))
+      dev[i] <- L - ntot*(h0*f0 - lz0)
+    }else
+      dev[i] <- L - ntot*sum(f0*log(f0))
   }
-  df <- lengths(xlevels)-1
+
+  df <- (length(object$groups)-1)*(lengths(xlevels)-1)
   pv <- pchisq(dev, df=df, lower.tail=F)
   
   ans <- c(object, list(dhNaive=h, chisqNaive=dev, dfNaive=df, pvNaive=pv))
@@ -120,11 +157,11 @@ print.summary.bbl <- function(x, ...){
   cat('Fit method: ',x$method,'\n',sep='')
   
   
-  cat('\nNaive Bayes coefficients:\n')
+  cat('\nnaive Bayes coefficients:\n')
   Ly <- length(x$groups)
   
   for(i in seq_len(nvar)){
-    cat('dH_',names(predictors)[i],': \n',sep='')
+    cat('dh_',names(predictors)[i],': \n',sep='')
     H <- t(x$dhNaive[[1]][[i]])
     if(Ly>1){
       for(iy in seq(2,Ly))
@@ -188,15 +225,12 @@ logLik.bbl <- function(x, ...){
 #' @param Jcol Color for interaction heatmaps. Default (\code{NULL}) is 
 #'        \code{RdBu} from \code{RColorBrewer}.
 #' @param npal Number of color scales.
-#' @param mar Plot margins.
 #' @param ... Other graphical parameters for \link{\code{plot}}.
 #'        
 #' @export
-plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100, 
-                     mar=c(3,3,3,3), ...){
+plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100, ...){
   
   oldpar <- par(no.readonly=TRUE)
-  par(mar=mar)
   predictors <- x$xlevels
   nvar <- length(predictors)
   Ly <- length(x$groups)
@@ -223,11 +257,11 @@ plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100,
   }
   rownames(H) <- x$groups
   bp <- barplot(H, beside=TRUE, col=hcol, names.arg=rep('',length(H)),main='', 
-                ylab=expression(Delta * italic(h)), ...)
+                ylab=expression(Delta * italic(h)), las=1, cex.axis=0.9, ...)
 
-  axis(side=1, at=colMeans(bp), label=name, las=2)
+  axis(side=1, at=colMeans(bp), label=name, las=2, cex.axis=0.9)
   if(is.null(hcol)) col <- gray.colors(Ly)
-  legend(x='topright', fill=col, legend=x$groups, xpd=NA, title=x$groupname,
+  legend(x='bottomright', fill=col, legend=x$groups, xpd=NA, title=x$groupname,
          cex=0.7)
   
   if(is.null(Jcol)) 
@@ -253,10 +287,10 @@ plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100,
   }
   for(iy in seq_len(Ly)){
     image(IJ[[iy]], col=Jcol, zlim=c(-z0,z0), axes=FALSE)
-    axis(side=1, at=seq(0,1,length.out=ndim),label=name,las=2, lwd=0)
-    axis(side=2, at=seq(0,1,length.out=ndim),label=name,las=2, lwd=0)
+    axis(side=1, at=seq(0,1,length.out=ndim),label=name,las=2, lwd=0, cex.axis=0.8)
+    axis(side=2, at=seq(0,1,length.out=ndim),label=name,las=2, lwd=0, cex.axis=0.8)
     title(adj=0.5, main=bquote(
-      Delta*italic(J)*'('*.(x$groupname)*'='*.(x$groups[iy])*')'))
+      Delta*italic(J)*'('*.(x$groupname)*'='*.(x$groups[iy])*')'),cex.main=1.0)
   }
   
   x0 <- 1.15
@@ -267,8 +301,8 @@ plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100,
   rect(xleft=x0,xright=x0*1.1, ytop=y, ybottom=y-dy, 
        col=rev(Jcol[seq(1,npal,length.out=ny)]),xpd=NA,lwd=0)
   zt <- signif(z0,digits=2)
-  text(x=x0*1.2,y=max(y),adj=1, label=zt, cex=0.6, xpd=NA)
-  text(x=x0*1.2,y=min(y),adj=1, label=-zt, cex=0.6, xpd=NA)
+  text(x=x0*1.25,y=max(y),adj=1, label=zt, cex=0.6, xpd=NA)
+  text(x=x0*1.25,y=min(y),adj=1, label=-zt, cex=0.6, xpd=NA)
   
   par(oldpar)
   return(invisible(x))
@@ -334,7 +368,7 @@ plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100,
 #' auc
 #' @importFrom utils setTxtProgressBar txtProgressBar
 #' @export
-predict.bbl <- function(object, newdata, logit=TRUE, useC=TRUE, 
+predict.bbl <- function(object, newdata, logit=TRUE, 
                         verbose=1, naive=FALSE, progress.bar=FALSE){
   
   term <- object$terms
@@ -342,11 +376,14 @@ predict.bbl <- function(object, newdata, logit=TRUE, useC=TRUE,
   var <- as.character(attr(term, 'variables')[-1])
   y <- object$model[,var[idy]]  # y is from training data
   predictors <- object$xlevels
+  numericx <- unlist(lapply(predictors, FUN=is.numeric))
   nvar <- length(predictors)
   if(verbose<=0) progress.bar <- FALSE
   
   if(missing(newdata)) data <- object$model
   else data <- newdata
+  if(sum(!colnames(data)%in% var)!=0) 
+    stop('Variable names in data not in object')
   x <- data[,var[-idy]]
   
   Ly <- length(object$groups)
@@ -357,9 +394,15 @@ predict.bbl <- function(object, newdata, logit=TRUE, useC=TRUE,
   xid <- matrix(0, nrow=nsample, ncol=nvar)
   
   for(i in seq_len(nvar)){
-    if(sum(!levels(factor(x[,i])) %in% predictors[[i]])>0)
-      stop('Levels in test data not in trained model')
-    xid[,i] <- match(x[,i],predictors[[i]]) - 1
+    if(numericx[i]){ 
+      if(!is.numeric(xid[,i])) 
+        stop('Test data not numeric for numeric predictor')
+      xid[,i] <- x[,i]
+    }else{
+      if(sum(!levels(factor(x[,i])) %in% predictors[[i]])>0)
+        stop('Levels in test data not in trained model')
+      xid[,i] <- match(x[,i],predictors[[i]]) - 1
+    }
   }
   lz <- py <- rep(0, Ly)
   for(iy in seq_len(Ly)){
@@ -380,15 +423,13 @@ predict.bbl <- function(object, newdata, logit=TRUE, useC=TRUE,
   if(progress.bar) pb <- txtProgressBar(style=3)
   for(k in seq_len(nsample)){
     xk <- xid[k,]
-    if(!useC){
-      E <- rep(0, Ly)
-      for(iy in seq_len(Ly))
-        E[iy] <- ham(xk, h[[iy]], J[[iy]], naive=naive) - 
-          lz[iy] + log(py[iy])
-    }else
-      E <- predict_class(xk, c(Ly), h, J, lz, py, c(naive))
-    for(iy in seq_len(Ly))
-      ay[k,iy] <- -log(sum(exp(E[-iy]-E[iy])))
+    E <- predict_class(xk, c(Ly), numericx, h, J, lz, py, c(naive))
+    for(iy in seq_len(Ly)){
+#     ay[k,iy] <- -log(sum(exp(E[-iy]-E[iy])))
+      e <- E[-iy] - max(E[-iy])
+      f <- log(sum(exp(e))) + max(E[-iy]) 
+      ay[k,iy] <- -f + E[iy]
+    }
     if(progress.bar) setTxtProgressBar(pb, k/nsample)
   }
   if(progress.bar) close(pb)
@@ -396,22 +437,29 @@ predict.bbl <- function(object, newdata, logit=TRUE, useC=TRUE,
   if(!logit) ay <- 1/(1+exp(-ay))  # posterior probability
   rownames(ay) <- seq_len(nsample)
   colnames(ay) <- object$groups
-  yhat <- object$groups[apply(ay,1,which.max)]
+  yhat <- factor(object$groups[apply(ay,1,which.max)],levels=object$groups)
   prob <- data.frame(as.data.frame(ay), yhat=yhat)
   
-  return(prob)    
+  return(prob)
 }
 
 #' @export
 print.cv.bbl <- function(x, ...){
   
-  if(x$method=='mf') cat('Optimal epsilon = ',cv$regstar,'\n',sep='')
-  else cat('Optimal lambda = ',cv$regstar,'\n',sep='')
+  if(x$method=='mf') cat('Optimal epsilon = ',x$regstar,'\n',sep='')
+  else cat('Optimal lambda = ',x$regstar,'\n',sep='')
   cat('Max. score: ',x$maxscore,'\n\n',sep='')
   print(x$cvframe)
   
 }
 
+#' @export
+predict.cv.bbl <- function(x, ...){
+  
+  class(x) <- 'bbl'
+  predict(x, ...)
+  
+}
 #' @export
 plot.cv.bbl <- function(x, type='b', log='x', ...){
   

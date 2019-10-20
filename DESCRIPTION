@@ -1,6 +1,6 @@
 Package: bbl
 Title: Boltzmann Bayes Learner
-Version: 0.1.5
+Version: 0.2.0
 Authors@R: c(person("Jun","Woo",role=c("aut","cre"),
                      email="jwoo@umn.edu",
                      comment=c(ORCID="0000-0003-3220-2064")), 
@@ -22,4 +22,6 @@ Encoding: UTF-8
 RoxygenNote: 6.1.1
 Roxygen: list(markdown = TRUE)
 NeedsCompilation: yes
+VignetteBuilder: Sweave
+Suggests: glmnet
 Packaged: 2019-08-30 23:45:17 UTC; jwoo

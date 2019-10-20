@@ -76,7 +76,7 @@ sample_xi <- function(nsample=1, predictors=NULL, h, J, code_out=FALSE){
     }
   } else fsi <- as.data.frame(si)
   rownames(fsi) <- seq_len(nsample)
-  colnames(fsi) <- seq_len(nvar)
+  colnames(fsi) <- names(predictors)
   return(fsi)
 }
 
@@ -136,4 +136,24 @@ randompar <- function(predictors, distr='unif', h0=0, dh=1, J0=0, dJ=1){
   }
   
   return(list(h=h, J=J))
+}
+
+#' Generate random predictor-response sample
+#' @export
+randomsamp <- function(predictors, response, prob=NULL, par, nsample=100){
+  
+  Ly <- length(response)
+  if(is.null(prob)) prob <- rep(1,Ly)
+  if(length(prob)!=Ly) stop('prob length does not match nsample')
+  y <- sample(response, size=nsample, replace=TRUE, prob=prob)
+  dat <- NULL
+  for(iy in seq_len(Ly)){
+    ny <- sum(y==response[iy])
+    xi <- sample_xi(nsample=ny, predictors=predictors,
+                          h=par[[iy]]$h, J=par[[iy]]$J)
+    yx <- cbind(data.frame(y=rep(response[iy],ny)),xi)
+    dat <- rbind(dat, yx)
+  }
+
+  return(dat)
 }

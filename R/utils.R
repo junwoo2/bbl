@@ -29,56 +29,6 @@ freq2raw <- function(fdata,freq){
   return(dat)
 }
 
-#' Compute Prediction Accuracy
-#' 
-#' Accuracy of predicted response probability is computed.
-#' 
-#' An option is provided for computing group-balanced accuracy, where
-#' prediction score is calculated for each group separately and averaged.
-#' @param object Object of class \code{bbl} with test data in \code{data} slot.
-#' @param prediction Data frame of predicted response group probability from
-#'        \code{\link{predict}}.
-#' @param balanced Compute balanced accuracy. If \code{TRUE},
-#'        \deqn{s = \frac{1}{K}\sum_y \frac{1}{n_y} \sum_{k\in y}
-#'        \delta\left({\hat y}_k = y\right).}
-#'        If \code{FALSE},
-#'        \deqn{s = \frac{1}{n}\sum_{k}
-#'        \delta\left({\hat y}_k = y_k\right).}
-#' @return List of \code{acc} (accuracy score) and \code{yhat} (predicted
-#'        response group). 
-#' @examples
-#' titanic <- freq2raw(as.data.frame(Titanic), Freq='Freq')
-#' nsample <- NROW(titanic)
-#' mod <- bbl(data=titanic, y='Survived')
-#' mod <- mod[sample(nsample),]
-#' mtrain <- mod[seq(nsample/2),]
-#' mtest <- mod[seq(nsample/2,nsample),]
-#' mtrain <- train(mtrain, method='mf')
-#' pred <- predict(mtrain, newdata=mtest@data)
-#' score <- accuracy(mtest, prediction=pred, balanced=TRUE) 
-#' @export
-accuracy <- function(object, prediction, balanced=FALSE){
-  
-  groups <- object@groups
-  
-  y <- object@data[,colnames(object@data)==object@y]
-  yhat <- colnames(prediction)[apply(prediction, 1, which.max)]
-  
-  if(balanced){
-    acav <- NULL
-    for(k in seq_along(groups)){
-      gr <- groups[k]
-      sub <- y==gr
-      acc <- mean(yhat[sub]==gr)
-      acav <- c(acav,acc)
-    }
-    acav <- mean(acav)
-  }
-  else
-    acav <- mean(y==yhat)
-  
-  return(list(acc=acav, yhat=yhat))
-}
 
 #' Read FASTA file
 #' 
@@ -103,7 +53,7 @@ accuracy <- function(object, prediction, balanced=FALSE){
 #' x <- read.fasta(file)
 #' x
 #' @export
-read.fasta <- function(file, rownames=FALSE){
+readFasta <- function(file, rownames=FALSE){
   
   if(!file.exists(file)) stop(paste0(file,' does not exist'))
   fl <- readLines(file)
@@ -133,4 +83,41 @@ read.fasta <- function(file, rownames=FALSE){
   colnames(dat) <- seq_len(NCOL(dat))
   
   return(dat)
+}
+
+#' Remove non-varying predictors
+#' @export
+removeConst <- function(x){
+  
+  bad <- lapply(x, function(x){length(levels(factor(x)))==1})
+  bad <- unlist(bad)
+  return(x[,!bad])
+}
+
+#' Newton-Raphson for f(h)=xav or h=f^-1(xav)
+#' 
+fu <- function(x, L, xav){
+  
+  L/(1-exp(-L*x)) - 1/(1-exp(-x)) - xav
+  
+}
+#' 1st derivative
+dfu <- function(x, L, xav){
+  
+  -L^2*exp(-L*x)/(1-exp(-L*x))^2 + exp(-x)/(1-exp(-x))^2
+  
+}
+
+#' Root finding function
+nr <- function(fu, dfu, xinit=0.1, tol=1e-5, maxit=100, ...){
+  
+  x <- xinit
+  for(i in seq_len(maxit)){
+    xp <- x - fu(x, ...)/dfu(x, ...)
+    df <- abs((xp/x)^2-1)
+    if(df < tol) break()
+    x <- xp
+  }
+  if(i >= maxit) warning('Maximim iteration limit reached')
+  return(x)
 }

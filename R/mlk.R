@@ -62,10 +62,10 @@
 #' points(x=unlist(par$J), y=unlist(mf$J), col='green')
 #' @export
 
-mlestimate <- function(xi, freq=NULL, qJ=NULL, method='pseudo', L=NULL, 
-                    lambda=1e-5, lambdah=0, symmetrize=TRUE, eps=0.9, 
-                    nprint=100, itmax=1000, tolerance=1e-5, verbose=1, 
-                    prior.count=TRUE, naive=FALSE, lz.half=FALSE){
+mlestimate <- function(xi, freq=NULL, qJ=NULL, numericx=NULL, method='pseudo', 
+                       L=NULL, lambda=1e-5, lambdah=0, symmetrize=TRUE, eps=0.9,
+                       nprint=100, itmax=10000, tolerance=1e-5, verbose=1,
+                       prior.count=TRUE, naive=FALSE, lz.half=FALSE){
   
   if(is.null(lambdah))
     lambdah <- lambda
@@ -77,6 +77,9 @@ mlestimate <- function(xi, freq=NULL, qJ=NULL, method='pseudo', L=NULL,
     diag(qJ) <- FALSE
   }
   naive <- sum(qJ)==0  # no interaction
+  
+  if(is.null(numericx))
+    numericx <- rep(FALSE, m)  # default: no numeric predictors
   
   La <- apply(xi, 2, max)
   if(is.null(L))
@@ -109,23 +112,27 @@ mlestimate <- function(xi, freq=NULL, qJ=NULL, method='pseudo', L=NULL,
     Verbose <- c(verbose)
     Lzhalf <- c(lz.half)
     Naive <- c(naive)
-    theta <- pseudo_mle(xi, freq, qJ, L, Lambda, Nprint, Itmax, Tol, 
+    theta <- pseudo_mle(xi, freq, qJ, numericx, L, Lambda, Nprint, Itmax, Tol, 
                         Naive, Verbose, Lzhalf)
     L <- theta$L
   }
   else if(method=='mf'){
     Eps <- c(eps)
-    theta <- mfwrapper(xi, freq, qJ, L, Eps)
+    theta <- mfwrapper(xi, freq, qJ, numericx, L, Eps)
   }
   else stop('unknown method in mlestimate')
 
   h <- theta$h
   J <- vector('list',m)
   for(i in seq_len(m)) J[[i]] <- vector('list',m)
-  for(i in seq(1,m)){ 
+  for(i in seq(1,m)){
+    if(numericx[i]) Li <- 1
+    else Li <- L[i]
     for(j in seq(i,m)){
-      x <- matrix(theta$J[[i]][[j]], nrow=L[i], ncol=L[j], byrow=TRUE)
-      xt <- matrix(theta$J[[j]][[i]], nrow=L[j], ncol=L[i], byrow=TRUE)
+      if(numericx[j]) Lj <- 1
+      else Lj <- L[j]
+      x <- matrix(theta$J[[i]][[j]], nrow=Li, ncol=Lj, byrow=TRUE)
+      xt <- matrix(theta$J[[j]][[i]], nrow=Lj, ncol=Li, byrow=TRUE)
       if(i<j & symmetrize){ 
         x <- (x + t(xt))/2
         xt <- t(x)

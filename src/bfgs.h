@@ -16,7 +16,7 @@ struct Param{
 };
 
 void f12(int i0, const std::vector<std::vector<short> > &si, 
-         const std::vector<int> &frq,
+         const std::vector<int> &frq, const std::vector<bool> &numeric,
          std::vector<double> &f1, std::vector<std::vector<double> > &f2, 
          const std::vector<short> &L, bool naive, bool pcount);
 
@@ -33,7 +33,8 @@ void ln_dln_psl(const gsl_vector *x, void *params, double *f, gsl_vector *df);
 
 double lpr_psl(int i0, const std::vector<std::vector<short> > &si,
                const std::vector<int> &frq,
-    const std::vector<bool> &qj, const std::vector<short> &L,
+    const std::vector<bool> &qj, const std::vector<bool> &numeric,
+    const std::vector<short> &L,
     double lambda, double lambdah, std::vector<double> &h, 
     std::vector<std::vector<double> > &J, int nprint,
     unsigned int imax, double tol, int verbose, double &lzp, 
@@ -44,6 +45,7 @@ double pan2(int nsnp, int i0, int L, const std::vector<short> &ci,
     double &lzp, bool naive);
 
 void invC(const std::vector<std::vector<short> > &ai, 
-          const std::vector<int> &frq, const std::vector<short> &L, 
+          const std::vector<int> &frq, const std::vector<bool> &numericx,
+          const std::vector<short> &L, 
           double &E, double &lnz, std::vector<std::vector<double> > &h,
             std::vector<std::vector<std::vector<double> > > &J, double eps);
