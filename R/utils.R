@@ -5,24 +5,24 @@
 #' 
 #' The ouput data frame can be used as input to \code{\link{bbl}}.
 #' 
-#' @param fdata Data frame with factors in columns 
-#' @param Freq Vector of frequency of each row in \code{fdata}
-#' @return Raw data frame with one row per instances
+#' @param data Data frame with factors in columns 
+#' @param freq Vector of frequency of each row in \code{data}
+#' @return Data frame with one row per instances
 #' @examples
 #' Titanic
 #' x <- as.data.frame(Titanic)
 #' head(x)
-#' titanic <- freq2raw(fdata=x[,1:3], freq=x$Freq)
+#' titanic <- freq2raw(data=x[,1:3], freq=x$Freq)
 #' head(titanic)
 #' @export
-freq2raw <- function(fdata,freq){
+freq2raw <- function(data,freq){
   
-  if(length(freq)!=NROW(fdata)) 
-     stop('Frequency length does not match fdata')
-  n <- nrow(fdata)
+  if(length(freq)!=NROW(data)) 
+     stop('Frequency length does not match data')
+  n <- nrow(data)
   dat <- NULL
   for(i in 1:n){
-    w <- fdata[rep(i,freq[i]),]
+    w <- data[rep(i,freq[i]),]
     dat <- rbind(dat, w)
   }
   rownames(dat) <- seq_len(NROW(dat))
@@ -30,7 +30,7 @@ freq2raw <- function(fdata,freq){
 }
 
 
-#' Read FASTA file
+#' Read FASTA File
 #' 
 #' Read nucleotide sequence files in FASTA format
 #' 
@@ -50,7 +50,7 @@ freq2raw <- function(fdata,freq){
 #' write('>seq2', file, append=TRUE)
 #' write('gccaa', file, append=TRUE)
 #' system(paste0('cat ',file))
-#' x <- read.fasta(file)
+#' x <- readFasta(file)
 #' x
 #' @export
 readFasta <- function(file, rownames=FALSE){
@@ -85,39 +85,28 @@ readFasta <- function(file, rownames=FALSE){
   return(dat)
 }
 
-#' Remove non-varying predictors
+#' Remove Non-varying Predictors
+#' 
+#' Constant predictor is identified and removed
+#' 
+#' Variables with only one factor level is removed from data. Intended
+#' for use before calling \code{\link{bbl}}.
+#' @param x Data frame containing discrete factor variables in each column
+#' @return Data frame omitting non-varying variables from \code{x}.
+#' @examples
+#' set.seed(351)
+#' nt <- c('a','c','g','t')
+#' x <- data.frame(v1=sample(nt,size=50,replace=TRUE),
+#'                 v2=rep('a',50),v3=sample(nt,size=50,replace=TRUE))
+#' y <- sample(c('case','ctrl'),size=50,replace=TRUE)
+#' dat <- cbind(data.frame(y=y), x)
+#' summary(dat)
+#' dat <- removeConst(dat)
+#' summary(dat)
 #' @export
 removeConst <- function(x){
   
   bad <- lapply(x, function(x){length(levels(factor(x)))==1})
   bad <- unlist(bad)
   return(x[,!bad])
-}
-
-#' Newton-Raphson for f(h)=xav or h=f^-1(xav)
-#' 
-fu <- function(x, L, xav){
-  
-  L/(1-exp(-L*x)) - 1/(1-exp(-x)) - xav
-  
-}
-#' 1st derivative
-dfu <- function(x, L, xav){
-  
-  -L^2*exp(-L*x)/(1-exp(-L*x))^2 + exp(-x)/(1-exp(-x))^2
-  
-}
-
-#' Root finding function
-nr <- function(fu, dfu, xinit=0.1, tol=1e-5, maxit=100, ...){
-  
-  x <- xinit
-  for(i in seq_len(maxit)){
-    xp <- x - fu(x, ...)/dfu(x, ...)
-    df <- abs((xp/x)^2-1)
-    if(df < tol) break()
-    x <- xp
-  }
-  if(i >= maxit) warning('Maximim iteration limit reached')
-  return(x)
 }

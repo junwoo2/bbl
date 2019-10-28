@@ -230,7 +230,6 @@ void ln_dln_psl(const gsl_vector *x,void *params,double *f,gsl_vector *df){
 
 double lpr_psl(int i0, const vector<vector<short> > &ai, 
                const vector<int> &frq, const vector<bool> &qj,
-               const vector<bool> &numeric,
                const vector<short> &L, double lambda,
                double lambdah, vector<double> &h, 
                vector<vector<double> > &J, int nprint, 
@@ -245,7 +244,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   vector<double> f1(nsnp);
   vector<vector<double> > f2(nsnp);
 
-  f12(i0, ai, frq, numeric, f1, f2, L, naive, false);
+  f12(i0, ai, frq, f1, f2, L, naive, false);
 
   const gsl_multimin_fdfminimizer_type *T;
   gsl_multimin_fdfminimizer *s;
@@ -318,36 +317,29 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
 
 
 void f12(int i0, const vector<vector<short> > &si, 
-         const vector<int> &frq, const vector<bool> &numeric,
-         vector<double> &f1, vector<vector<double> > &f2, 
+         const vector<int> &frq, vector<double> &f1, vector<vector<double> > &f2, 
          const vector<short> &L, bool naive, bool pcount){
 
   int n = si.size();
   int m = si[0].size();
-  int Li0 = (numeric[i0]? 1 : L[i0]);  // upper bound for x
+  int Li0 = L[i0];  // upper bound for x
   f1.resize(Li0);
   f2.resize(m);
 
   for(int l=0; l<Li0; l++){
     f1[l]=0;
-    if(pcount){
-      if(!numeric[i0]) f1[l] += 1.0/(1+Li0);
-      else f1[l] += 1.0/(1+L[i0]);
-    }
+    if(pcount)
+      f1[l] += 1.0/(1+Li0);
   }
   if(!naive){
     for(int i=0; i<m; i++){
-      int Li = (numeric[i]? 1 : L[i]);
+      int Li = L[i];
       f2[i].resize(Li0*Li);
       for(int l0=0; l0<Li0; l0++) for(int l1=0; l1<Li; l1++){
         int id = Li*l0+l1;
         f2[i][id]=0;
-        if(pcount){
-          if(!numeric[i0])
-            f2[i][id] += (i==i0 ? 1.0/(Li0+1) : 1.0/(Li0+1)/(Li+1));
-          else
-            f2[i][id] += (i==i0 ? 1.0/(L[i]+1) : 1.0/(L[i]+1)/(L[i]+1));
-        }
+        if(pcount)
+          f2[i][id] += (i==i0 ? 1.0/(Li0+1) : 1.0/(Li0+1)/(Li+1));
       }
     }
   }
@@ -357,23 +349,13 @@ void f12(int i0, const vector<vector<short> > &si,
     wsum += frq[k];
     short a=si[k][i0];
     if(a==0) continue;
-    if(numeric[i0]) 
-      f1[0] += frq[k]*a;
-    else 
-      f1[a-1] += frq[k];
+    f1[a-1] += frq[k];
     if(naive) continue;
     for(int j=0; j<m; j++){
-      if(j==i0 && !numeric[j]) continue;
+      if(j==i0) continue;
       short b=si[k][j];
       if(b==0) continue;
-      if(numeric[i0] && numeric[j])
-        f2[j][0] += frq[k]*a*b;
-      else if(numeric[i0])
-        f2[j][b-1] += frq[k]*a;
-      else if(numeric[j])
-        f2[j][a-1] += frq[k]*b;
-      else
-        f2[j][L[j]*(a-1)+b-1] += frq[k];
+      f2[j][L[j]*(a-1)+b-1] += frq[k];
     }
   }
   
@@ -382,8 +364,8 @@ void f12(int i0, const vector<vector<short> > &si,
     f1[l0]/=nc;
     if(naive) continue;
     for(int j=0; j<m; j++){
-      int Lj = (numeric[j]? 1 : L[j]);
-      if(i0==j && !numeric[i0]){
+      int Lj = L[j];
+      if(i0==j){
         for(int l1=0; l1<Lj; l1++){
           if(l0==l1)
             f2[j][Lj*l0+l1]=f1[l0];

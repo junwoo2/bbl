@@ -5,15 +5,13 @@ using namespace Rcpp;
 
 // [[Rcpp::export]]
 List mfwrapper(NumericMatrix xi, IntegerVector freq, NumericMatrix qJ,
-               LogicalVector numericx, IntegerVector Lv, NumericVector Eps){
+               IntegerVector Lv, NumericVector Eps){
   
   int n = xi.nrow();
   int m = xi.ncol();
   std::vector<short> L;
   std::vector<std::vector<short> > sv(n);
-  std::vector<bool> numeric(m);
   for(int i=0; i<m; i++){
-    numeric[i]=numericx(i);
     L.push_back(Lv[i]);
     for(int k=0; k<n; k++)
       sv[k].push_back(xi(k,i));
@@ -30,7 +28,7 @@ List mfwrapper(NumericMatrix xi, IntegerVector freq, NumericMatrix qJ,
   double eps = Eps[0];
   double lkl = 0;
   double lnz = 0;
-  invC(sv, frq, numeric, L, lkl, lnz, hp, Jp, eps);
+  invC(sv, frq, L, lkl, lnz, hp, Jp, eps);
   
   std::vector<std::vector<double> > h(m);
   std::vector<std::vector<std::vector<double> > > J(m);

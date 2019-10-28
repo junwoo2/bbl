@@ -5,9 +5,8 @@ using namespace Rcpp;
 
 // [[Rcpp::export]]
 List pseudo_mle(NumericMatrix xi, IntegerVector freq,
-                LogicalMatrix qJ, LogicalVector numericx,
-                IntegerVector Lv, NumericVector Lambda, IntegerVector Nprint, 
-                IntegerVector Itmax, NumericVector Tol,
+                LogicalMatrix qJ, IntegerVector Lv, NumericVector Lambda, 
+                IntegerVector Nprint, IntegerVector Itmax, NumericVector Tol,
                 LogicalVector Naive, IntegerVector Verbose, 
                 LogicalVector Lzhalf){
   
@@ -25,10 +24,8 @@ List pseudo_mle(NumericMatrix xi, IntegerVector freq,
   int nbad=0;
   std::vector<bool> bad(m);
   std::vector<std::vector<bool> > qj(m);
-  std::vector<bool> numeric(m);
   
   for(int i=0; i<m; i++){
-    numeric[i]=numericx(i);
     for(int j=0; j<m; j++)
       qj[i].push_back(qJ(i,j));
     short xmin=xi(0,i);
@@ -76,7 +73,7 @@ List pseudo_mle(NumericMatrix xi, IntegerVector freq,
   for(int i0=0; i0<m; i0++){
     double z=0;
     bool failed=false;
-    lks += lpr_psl(i0, sv, frq, qj[i0], numeric, L, lambda, lambdah, 
+    lks += lpr_psl(i0, sv, frq, qj[i0], L, lambda, lambdah, 
                    h[i0], J[i0], nprint, Imax, tol, verbose, z, naive, 
                    failed, lzhalf);
     if(failed)
@@ -92,8 +89,7 @@ List pseudo_mle(NumericMatrix xi, IntegerVector freq,
 }
 
 // [[Rcpp::export]]
-NumericVector predict_class(IntegerVector xid, IntegerVector Ly, 
-                            LogicalVector numeric, List h, List J,
+NumericVector predict_class(IntegerVector xid, IntegerVector Ly, List h, List J,
                             NumericVector lz, NumericVector py, 
                             LogicalVector Naive){
 
@@ -109,24 +105,14 @@ NumericVector predict_class(IntegerVector xid, IntegerVector Ly,
       if(xid(i)==0) continue;
       NumericVector hi = hy[i];
       if(hi.length() < xid(i)) continue;
-      if(numeric(i))
-        e += hi(0)*xid(i);
-      else
-        e += hi(xid(i)-1);
+      e += hi(xid(i)-1);
       List Ji = Jy[i];
       if(Naive[0]) continue;
       for(int j=0; j<m; j++){
         if(j==i || xid(j)==0) continue;
         NumericMatrix Jj = Ji[j];
         if(Jj.nrow()<xid(i) ||  Jj.ncol()<xid(j)) continue;
-        if(numeric(i) && numeric(j))
-          e += Jj(0,0)*xid(i)*xid(j)/2.0;
-        else if(numeric(i))
-          e += Jj(0,xid(j)-1)*xid(i)/2.0;
-        else if(numeric(j))
-          e += Jj(xid(i)-1,0)*xid(j)/2.0;
-        else
-          e += Jj(xid(i)-1,xid(j)-1)/2.0;
+        e += Jj(xid(i)-1,xid(j)-1)/2.0;
       }
     }
     E[iy] = e - lz[iy] + log(py[iy]);

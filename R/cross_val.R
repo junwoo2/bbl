@@ -10,7 +10,12 @@
 #' prediction score is evaluated using the known response group
 #' identity.
 #' 
-#' @param object Object of class \code{bbl} containing data.
+#' @param formula Formula for model. Note that intercept has no effect.
+#' @param data Data frame of data. Column names must match \code{formula}.
+#' @param freq Frequency vector of how many times each row of \code{data} must
+#'        be repeated. If \code{NULL}, defaults to vector of 1s. 
+#'        Fractional values are not supported.
+#' @param novarOk Proceed even when there are predictors with only one factor level.
 #' @param lambda Vector of L2 penalizer values for \code{method = 'pseudo'}. Inferences
 #'        will be repeated for each value. Restricited to non-negative values.
 #' @param lambdah L2 penalizer in \code{method = 'pseudo'} applied to
@@ -27,36 +32,35 @@
 #' @param use.auc Use AUC as the measure of prediction accuracy. Only works
 #'        if response groups are binary. If \code{FALSE}, mean prediction group
 #'        accuracy will be used as score.
-#' @param verbose Verbosity level. Downgraded when relayed into \code{\link{train}}.
-#' @param useC Use \code{C++} version in \code{\link{predict}} method of \code{bbl}.
-#' @param prior.count Use prior count in \code{method = 'mf'}.
+#' @param verbose Verbosity level. Downgraded when relayed into \code{\link{bbl}}.
 #' @param progress.bar Display progress bar in \code{\link{predict}}.
-#' @param fixL Do not alter the levels of predictors in training step.
+#' @param storeOpt Store the optimal fitted object of class \code{\link{bbl}}.
 #' @param ... Other parameters to \code{\link{mlestimate}}.
-#' @return Data frame of regularization parameter values and validation scores.
+#' @return Object of class \code{cv.bbl} extending \code{\link{bbl}}, a list
+#'         with extra components
+#'         \item{regstar}{Value of regularization parameter, \code{lambda}
+#'         and \code{eps} for \code{method='pseudo'} and \code{method='mf'},
+#'         respectively, at which the accuracy score is maximized}
+#'         \item{maxscore}{Value of maximum accuracy score}
+#'         \item{cvframe}{Data frame of regularization parameters and scores scanned}
+#'         The components of \code{\link{bbl}} store the optimal model trained
+#'         if \code{storeOpt=TRUE}.
 #' @examples
 #' set.seed(513)
 #' m <- 5
 #' n <- 100
 #' predictors <- list()
 #' for(i in 1:m) predictors[[i]] <- c('a','c','g','t')
-#' 
-#' par0 <- randompar(predictors)
-#' xi0 <- sample_xi(nsample=n, predictors=predictors, h=par0$h, J=par0$J)
-#' par1 <- randompar(predictors, h0=0.1, J0=0.1)
-#' xi1 <- sample_xi(nsample=n, predictors=predictors, h=par1$h, J=par1$J)
-#' xi <- rbind(xi0, xi1)
-#' dat <- cbind(xi, data.frame(y=c(rep('control',n),rep('case',n))))
-#' model <- bbl(data=dat, groups=c('control','case'))
-#' 
-#' cv <- crossval(object=model, method='mf', eps=seq(0.1,0.9,0.1))
-#' plot(cv, type='b')
+#' names(predictors) <- paste0('v',1:m)
+#' par <- list(randompar(predictors), randompar(predictors, h0=0.1, J0=0.1))
+#' dat <- randomsamp(predictors, response=c('ctrl','case'), par=par, nsample=n)
+#' cv <- crossVal(y ~ .^2, data=dat, method='mf', eps=seq(0.1,0.9,0.1))
+#' cv
 #' @export
-crossVal <- function(formula, data, freq=NULL, novar.ok=FALSE, 
+crossVal <- function(formula, data, freq=NULL, novarOk=FALSE, 
                      lambda=1e-5, lambdah=0, eps=0.9, nfold=5, 
                      method='pseudo', naive=FALSE, use.auc=TRUE, 
-                     verbose=1, prior.count=TRUE, 
-                     progress.bar=FALSE, storeOpt=TRUE, ...){
+                     verbose=1, progress.bar=FALSE, storeOpt=TRUE, ...){
   
   
   cl <- match.call()
@@ -80,7 +84,7 @@ crossVal <- function(formula, data, freq=NULL, novar.ok=FALSE,
   for(i in seq_along(xlevels)){
     if(length(xlevels[[i]])==1){
       mesg <- paste0('Predictor ',names(xlevels)[i],' has one level')
-      if(novar.ok)
+      if(novarOk)
         warning(mesg)
       else
         stop(mesg)
@@ -100,7 +104,7 @@ crossVal <- function(formula, data, freq=NULL, novar.ok=FALSE,
     if(!all.equal(freq, as.integer(freq))) stop('Non-integer freq')
     if(length(freq)!=NROW(data))
       stop('Length of freq does not match data')
-    yx <- freq2raw(fdata=yx, freq=freq)
+    yx <- freq2raw(data=yx, freq=freq)
     y <- yx[,resp]
   }
   
@@ -144,9 +148,9 @@ crossVal <- function(formula, data, freq=NULL, novar.ok=FALSE,
       for(iy in seq_len(Ly)){
         idy <- which(y==groups[iy])
         ns <- length(idy)
-        nval <- max(1,ceiling(ns/nfold))
+        nval <- max(1,floor(ns/nfold))
         imax <- k*nval
-        if(imax > ns) imax <- ns
+        if(imax > ns | k==nfold) imax <- ns
         if(imax < 1) imax <- 1
         iyval <- idy[seq((k-1)*nval+1, imax)]
         iytrain <- idy[!idy %in% iyval]
@@ -154,6 +158,8 @@ crossVal <- function(formula, data, freq=NULL, novar.ok=FALSE,
         itrain <- c(itrain, iytrain)
       }
       if(sum(is.na(ival)>0) | sum(is.na(itrain)>0)) 
+        stop('Error in train/validation division')
+      if(length(ival)==0 | length(itrain)==0)
         stop('Sample size too small for nfold requested')
       dval <- yx[ival, ,drop=FALSE]
       dtrain <- yx[itrain, ,drop=FALSE]

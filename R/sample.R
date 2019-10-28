@@ -27,7 +27,7 @@ enum <- function(si, L, i, h, J, e=NULL){
   return(e)
 }
 
-#' Generate Random Samples from BB model
+#' Generate Random Samples from Boltzmann Distribution
 #' 
 #' Random samples are drawn from Boltzmann distribution
 #' 
@@ -80,7 +80,7 @@ sample_xi <- function(nsample=1, predictors=NULL, h, J, code_out=FALSE){
   return(fsi)
 }
 
-#' Generate random bias and interaction parameters
+#' Generate Random Parameters
 #' 
 #' Random values of bias and interaction parameters are generated
 #' using either uniform or normal distributions.
@@ -138,7 +138,23 @@ randompar <- function(predictors, distr='unif', h0=0, dh=1, J0=0, dJ=1){
   return(list(h=h, J=J))
 }
 
-#' Generate random predictor-response sample
+#' Generate Random Boltzmann Bayes Model Data
+#' 
+#' Predictor-response paired data are generated
+#' 
+#' The argument \code{response} is used to set up all possible levels
+#' of response groups and likewise for \code{predictors}. The parameter
+#' argument \code{\link{par}} must have the appropriate structure 
+#' consistent with \code{response} and \code{predictors}. This function
+#' is a wrapper calling \code{\link{sample_xi}} multiple times.
+#' 
+#' @param predictors List of vectors of predictor levels
+#' @param response Vector of response variables
+#' @param prob Vector of probabilities for sampling each response group
+#' @param par List of \code{\link{bbl}} parameters for each response group;
+#'        e.g., generated from calls to \code{\link{randompar}}.
+#' @param nsample Sample size
+#' @return Data frame of response and predictor variables.
 #' @export
 randomsamp <- function(predictors, response, prob=NULL, par, nsample=100){
   

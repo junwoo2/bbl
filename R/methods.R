@@ -1,3 +1,16 @@
+#' Print Boltzmann Bayes Learning Fits
+#' 
+#' This method displays model structure and first elements of coefficients
+#' 
+#' Displays the call to \code{\link{bbl}}, response variable and its levels,
+#' predictors and their levels, and the first few fit coefficients.
+#' 
+#' @param x An object of class \code{bbl}, usually dervied from a call to
+#'          \code{\link{bbl}}.
+#' @param showcoeff Display first few fit coefficients
+#' @param maxcoeff Maximum number of coefficients to display
+#' @param ... Further arguments passed to or from other methods
+#' @import methods
 #' @export
 print.bbl <- function(x, showcoeff=TRUE, maxcoeff=3L, ...){
   
@@ -44,14 +57,35 @@ print.bbl <- function(x, showcoeff=TRUE, maxcoeff=3L, ...){
 #' 
 #' Estimate significant of predictor-group association using naive Bayes model
 #' 
-#' @param object Object of class \code{bbl}.
-#' @return Object of class \code{summary.bbl}. 
+#' This \code{summary.bbl} method gives a rough overview of associations
+#' within a \code{bbl} fit object via naive Bayes coefficients and test 
+#' p-values. Note that naive Bayes results displayed ignore interactions 
+#' even when interactions are present in the model being displayed. This
+#' feature is because simple analytic results exist for naive Bayes 
+#' coefficients and test p-values. The likelihood ratio test is with respect
+#' to the null hypothesis that coefficients are identical for all response
+#' groups.   
+#' 
+#' @param object Object of class \code{bbl}
+#' @param prior.count Prior count to be used for computing coefficients
+#'        and test results. If \code{0}, will produce \code{NA}s for 
+#'        factor levels without data points.
+#' @param ... Other arguments to methods.
+#' @return Object of class \code{summary.bbl} extending \code{bbl} class; 
+#'      a list with extra components
+#'    \item{h}{List of bias coefficients of response groups under naive 
+#'    Bayes approximation}
+#'    \item{h0}{Bias coefficients of pooled group under naive Bayes}
+#'    \item{chisqNaive}{Vector of chi-square statistics for likelihood ratio test
+#'    for each predictor}
+#'    \item{dfNaive}{Vector of degrees of freedom for likelihood ratio test for
+#'    each predictor}
+#'    \item{pvNaive}{Vector p-values for each predictor}
 #' @export
 summary.bbl <- function(object, prior.count=1, ...){
   
   naive <- sum(object$qJ)==0  # no interaction
   xlevels <- object$xlevels
-  numericx <- unlist(lapply(xlevels, FUN=is.numeric))
   data <- object$model
   y <- data[,object$groupname]
   x <- data[,names(xlevels)]
@@ -64,6 +98,8 @@ summary.bbl <- function(object, prior.count=1, ...){
   names(dev) <- names(xlevels)
   h <- vector('list',length(object$groups))
   names(h) <- object$groups
+  h0 <- vector('list', length(xlevels))
+  names(h0) <- names(xlevels)
   for(iy in object$groups){
     h[[iy]] <- vector('list',length(xlevels))
     names(h[[iy]]) <- names(xlevels)
@@ -72,73 +108,47 @@ summary.bbl <- function(object, prior.count=1, ...){
   ntot <- sum(freq)
   for(i in seq_along(xlevels)){
     Li <- length(xlevels[[i]])
-    if(numericx[i]) nx <- 1
-    else nx <- Li
-    f0 <- rep(0, nx)  # pooled inference
-    if(numericx[i]){ 
-      names(f0) <- 'Numeric'
-      for(w in xlevels[[i]])
-        f0 <- f0 + w*(sum((data[,names(xlevels)[i]]==w)*freq) +
-                      prior.count/Li)
-    }
-    else{ 
-      names(f0) <- xlevels[[i]]
-      for(w in xlevels[[i]])
-        f0[w] <- sum((data[,names(xlevels)[i]]==w)*freq)
-      f0 <- f0 + prior.count/Li
-    }
+    f0 <- rep(0, Li)  # pooled inference
+    names(f0) <- xlevels[[i]]
+    for(w in xlevels[[i]])
+      f0[as.character(w)] <- sum((data[,names(xlevels)[i]]==w)*freq)
+    f0 <- f0 + prior.count/Li
     f0 <- f0 /(ntot + prior.count)
-    if(numericx[i])
-      h0 <- nr(fu=fu, dfu=dfu, L=Li, xav=f0)
-    else
-      h0 <- log(f0[-1]/f0[1])
+    h0[[i]] <- log(f0[-1]/f0[1])
     
     L <- 0
     for(iy in object$groups){
       ny <- sum(freq[y==iy])
-      fv <- rep(0,nx)
-      if(numericx[i]){
-        names(fv) <- 'Numeric'
-        for(w in xlevels[[i]])
-          fv <- fv + w*(sum((data[y==iy,names(xlevels)[i]]==w)*freq[y==iy])+
-                        prior.count/Li)
-      }
-      else{
-        names(fv) <- xlevels[[i]]
-        for(w in xlevels[[i]])
-          fv[w] <- sum((data[y==iy,names(xlevels)[i]]==w)*freq[y==iy])
-        fv <- fv + prior.count/Li
-      }
+      fv <- rep(0,Li)
+      names(fv) <- xlevels[[i]]
+      for(w in xlevels[[i]])
+        fv[as.character(w)] <- 
+        sum((data[y==iy,names(xlevels)[i]]==w)*freq[y==iy])
+      fv <- fv + prior.count/Li
       fv <- fv /(ny+prior.count)
-      if(numericx[i])
-        hi <- nr(f=fu, df=dfu, L=Li, xav=fv)
-      else{
-        h[[iy]][[i]] <- log(fv[-1]/fv[1])
-        names(h[[iy]][[i]]) <- xlevels[[i]][-1]
-      }
-      if(numericx[i]){
-        lzi <- log((1-exp(Li*hi))/(1-exp(hi)))
-        L <- L + ny*(hi*fv - lzi)
-        h[[iy]][[i]] <- hi - h0
-        names(h[[iy]][[i]]) <- 'Numeric'
-      }
-      else L <- L+ ny*sum(fv*log(fv))
+      h[[iy]][[i]] <- log(fv[-1]/fv[1])
+      names(h[[iy]][[i]]) <- xlevels[[i]][-1]
+      L <- L+ ny*sum(fv*log(fv))
     }
-    if(numericx[i]){ 
-      lz0 <- log((1-exp(Li*h0))/(1-exp(h0)))
-      dev[i] <- L - ntot*(h0*f0 - lz0)
-    }else
-      dev[i] <- L - ntot*sum(f0*log(f0))
+    dev[i] <- 2*(L - ntot*sum(f0*log(f0)))
   }
 
   df <- (length(object$groups)-1)*(lengths(xlevels)-1)
   pv <- pchisq(dev, df=df, lower.tail=F)
   
-  ans <- c(object, list(dhNaive=h, chisqNaive=dev, dfNaive=df, pvNaive=pv))
+  ans <- c(object, list(h=h, h0=h0, chisqNaive=dev, dfNaive=df, pvNaive=pv))
   class(ans) <- 'summary.bbl'
   return(ans)
 }
 
+#' Print Summary of Boltzmann Bayes Learning
+#' 
+#' This method prints the summary of \code{bbl} object
+#' 
+#' The naive Bayes summary of \code{summary.bbl} object is displayed.
+#' 
+#' @param x Object of class \code{summary.bbl}
+#' @param ... Other arguments to methods
 #' @export
 print.summary.bbl <- function(x, ...){
   
@@ -161,13 +171,14 @@ print.summary.bbl <- function(x, ...){
   Ly <- length(x$groups)
   
   for(i in seq_len(nvar)){
-    cat('dh_',names(predictors)[i],': \n',sep='')
-    H <- t(x$dhNaive[[1]][[i]])
+    cat('h_',names(predictors)[i],': \n',sep='')
+    H <- t(x$h[[1]][[i]])
     if(Ly>1){
       for(iy in seq(2,Ly))
-        H <- rbind(H, x$dhNaive[[iy]][[i]])
+        H <- rbind(H, x$h[[iy]][[i]])
+      H <- rbind(H, x$h0[[i]])
     }
-    rownames(H) <- x$groups
+    rownames(H) <- c(x$groups,'pooled')
     print(H)
     cat('chisq = ',x$chisqNaive[i], ', df = ',x$dfNaive[i], ', Pr(>chisq) = ',
         x$pvNaive[i],'\n\n',sep='')
@@ -175,24 +186,33 @@ print.summary.bbl <- function(x, ...){
 }
 
 #' Log likelihood for bbl object
+#' 
+#' Compute log likelihood from a fitted \code{bbl} object
+#' 
+#' This method will use inferred parameters from calls to \code{bbl} and data
+#' compute the log likelihood.
+#' 
+#' @param object Object of class \code{bbl}
+#' @param ... Other arguments to methods
+#' @return Log likelihood value
 #' @export
-logLik.bbl <- function(x, ...){
+logLik.bbl <- function(object, ...){
 
-  if(x$method!='mf') stop('Object was not trained with mf method')
-  term <- x$terms
+  if(object$method!='mf') stop('Object was not trained with mf method')
+  term <- object$terms
   idy <- attr(term,'response')
   var <- as.character(attr(term, 'variables')[-1])
-  predictors <- x$xlevels
+  predictors <- object$xlevels
   nvar <- length(predictors)
   xvar <- names(predictors)
   
-  h <- coef(x)$h
-  J <- coef(x)$J
-  y <- x$model[,idy]
-  xdat <- x$model[,names(predictors)]
+  h <- coef(object)$h
+  J <- coef(object)$J
+  y <- object$model[,idy]
+  xdat <- object$model[,names(predictors)]
 
   E <- 0.0
-  for(yi in x$groups){
+  for(yi in object$groups){
     dat <- xdat[y==yi,]
     ny <- NROW(dat)
     for(k in seq_len(ny)){
@@ -210,48 +230,65 @@ logLik.bbl <- function(x, ...){
         }
       }
     }
-    E <- E - ny*x$lz[yi]
+    E <- E - ny*object$lz[yi]
   }
   return(as.numeric(E))
 }
 
 #' Plot bbl object
+#' 
+#' Visualize bias and interaction parameters
+#' 
+#' This method displays a barplot of bias parameters and heatmaps
+#' (one per response group) of interaction parameters. All parameters are
+#' offset by the pooled values (single group inference) unless missing. 
 #' @param x Object of class \code{bbl}
 #' @param layout Matrix of layouts for arrangment of linear and interaction 
-#'        parameters. If \code{NULL}, the top half will be used for linear parameter
-#'        barplot and bottom half will be divided into interaction heatmaps
-#'        for each response group.
+#'        parameters. If \code{NULL}, the top half will be used for linear 
+#'        parameter barplot and bottom half will be divided into interaction 
+#'        heatmaps for each response group.
 #' @param hcol Color for linear barplots. Grayscale if \code{NULL}.
 #' @param Jcol Color for interaction heatmaps. Default (\code{NULL}) is 
 #'        \code{RdBu} from \code{RColorBrewer}.
 #' @param npal Number of color scales.
-#' @param ... Other graphical parameters for \link{\code{plot}}.
+#' @param ... Other graphical parameters for \code{\link{plot}}.
 #'        
 #' @export
 plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100, ...){
   
   oldpar <- par(no.readonly=TRUE)
   predictors <- x$xlevels
+  naive <- sum(x$qJ)==0
   nvar <- length(predictors)
   Ly <- length(x$groups)
   h <- coef(x)$h
   h0 <- coef(x)$h0
+  if(is.null(h0)) warning('Pooled parameters missing; use bbl(..., testNull=TRUE)')
   
   name <- NULL
   for(i in seq_len(nvar))
     name <- c(name, paste0(names(predictors)[i],':',predictors[[i]][-1]))
   
-  if(is.null(layout))
-    layout(matrix(c(rep(1,Ly), seq(2,Ly+1)), nrow=Ly, ncol=2, byrow=TRUE))
-  else
-    layout(layout)
+  if(!naive){
+    if(is.null(layout))
+      layout(matrix(c(rep(1,Ly), seq(2,Ly+1)), nrow=Ly, ncol=2, byrow=TRUE))
+    else
+      layout(layout)
+  }
   
   H <- NULL
   for(i in seq_len(nvar)){
-    hi <- t(h[[1]][[i]]-h0[[i]])
+    if(!is.null(h0))
+      hi <- t(h[[1]][[i]]-h0[[i]])
+    else
+      hi <- t(h[[1]][[i]])
     if(Ly>1){
-      for(iy in seq(2,Ly))
-        hi <- rbind(hi, h[[iy]][[i]]-h0[[i]])
+      for(iy in seq(2,Ly)){
+        if(!is.null(h0))
+          hi <- rbind(hi, h[[iy]][[i]]-h0[[i]])
+        else
+          hi <- rbind(hi, h[[iy]][[i]])
+      }
     }
     H <- cbind(H, hi)
   }
@@ -259,10 +296,15 @@ plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100, ...){
   bp <- barplot(H, beside=TRUE, col=hcol, names.arg=rep('',length(H)),main='', 
                 ylab=expression(Delta * italic(h)), las=1, cex.axis=0.9, ...)
 
-  axis(side=1, at=colMeans(bp), label=name, las=2, cex.axis=0.9)
+  axis(side=1, at=colMeans(bp), labels=name, las=2, cex.axis=0.9)
   if(is.null(hcol)) col <- gray.colors(Ly)
-  legend(x='bottomright', fill=col, legend=x$groups, xpd=NA, title=x$groupname,
-         cex=0.7)
+  legend(x='topright', fill=col, legend=x$groups, xpd=NA, 
+         title=x$groupname, cex=0.5)
+  
+  if(naive){
+    par(oldpar)
+    return(invisible(x))
+  }
   
   if(is.null(Jcol)) 
     Jcol <- rev(colorRampPalette(RColorBrewer::brewer.pal(11,'RdBu'))(npal))
@@ -277,7 +319,10 @@ plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100, ...){
     for(i in seq_len(nvar)) for(li in predictors[[i]][-1]){
       jdx <- 1
       for(j in seq_len(nvar)) for(lj in predictors[[j]][-1]){
-        I[idx, jdx] <- J[[i]][[j]][li,lj] - J0[[i]][[j]][li,lj]
+        tmp <- J[[i]][[j]][li,lj]
+        if(!is.null(J0))
+          tmp <- tmp - J0[[i]][[j]][li,lj]
+        I[idx, jdx] <- tmp
         jdx <- jdx + 1
       }
       idx <- idx + 1
@@ -287,8 +332,8 @@ plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100, ...){
   }
   for(iy in seq_len(Ly)){
     image(IJ[[iy]], col=Jcol, zlim=c(-z0,z0), axes=FALSE)
-    axis(side=1, at=seq(0,1,length.out=ndim),label=name,las=2, lwd=0, cex.axis=0.8)
-    axis(side=2, at=seq(0,1,length.out=ndim),label=name,las=2, lwd=0, cex.axis=0.8)
+    axis(side=1, at=seq(0,1,length.out=ndim),labels=name,las=2, lwd=0, cex.axis=0.8)
+    axis(side=2, at=seq(0,1,length.out=ndim),labels=name,las=2, lwd=0, cex.axis=0.8)
     title(adj=0.5, main=bquote(
       Delta*italic(J)*'('*.(x$groupname)*'='*.(x$groups[iy])*')'),cex.main=1.0)
   }
@@ -301,8 +346,8 @@ plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100, ...){
   rect(xleft=x0,xright=x0*1.1, ytop=y, ybottom=y-dy, 
        col=rev(Jcol[seq(1,npal,length.out=ny)]),xpd=NA,lwd=0)
   zt <- signif(z0,digits=2)
-  text(x=x0*1.25,y=max(y),adj=1, label=zt, cex=0.6, xpd=NA)
-  text(x=x0*1.25,y=min(y),adj=1, label=-zt, cex=0.6, xpd=NA)
+  text(x=x0*1.3,y=max(y),adj=1, label=zt, cex=0.6, xpd=NA)
+  text(x=x0*1.3,y=min(y),adj=1, label=-zt, cex=0.6, xpd=NA)
   
   par(oldpar)
   return(invisible(x))
@@ -312,8 +357,8 @@ plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100, ...){
 #' 
 #' Make prediction of response group identity based on trained model
 #' 
-#' Will use new data set for predictors and trained \code{bbl} model
-#' parameters and compute posterior probabilities of response group 
+#' This method uses a new data set for predictors and trained \code{bbl} model
+#' parameters to compute posterior probabilities of response group 
 #' identity.
 #' 
 #' @param object Object of class \code{bbl} containing trained model
@@ -326,13 +371,14 @@ plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100, ...){
 #'        by \code{model@data} (self-prediction).
 #' @param logit Return predictors whose logistic function gives probability;
 #'              otherwise return probability itself.
-#' @param useC Use \code{C++} version for posterior probability computation.
 #' @param verbose Verbosity level
-#' @param naive Naive Bayes. Skip all interaction terms.
+#' @param naive Nnaive Bayes. Skip all interaction terms.
 #' @param progress.bar Display progress of response group probability. Useful
 #'        for large samples.
-#' @return Matrix of predictors/posterior proabilities with samples in rows
-#'         and response groups in columns.
+#' @param ... Other arguments to methods
+#' @return Data frame of predicted posterior probabilities with samples in rows
+#'         and response groups in columns. The last column is the predicted
+#'         response group with maximum probability.
 #' @examples
 #' set.seed(154)
 #' 
@@ -342,41 +388,32 @@ plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100, ...){
 #' 
 #' predictors <- list()
 #' for(i in 1:m) predictors[[i]] <- seq(0,L-1)
-#' par0 <- randompar(predictors=predictors, h0=0, J0=0, dJ=0.5)
-#' xi0 <- sample_xi(nsample=n, predictors=predictors, h=par0$h, J=par0$J) 
-#'
-#' par1 <- randompar(predictors=predictors, h0=0.1, J0=0.1, dJ=0.5)
-#' xi1 <- sample_xi(nsample=n, predictors=predictors, h=par1$h, J=par1$J) 
-#'
-#' xi <- rbind(xi0,xi1)
-#' y <- c(rep(0,n),rep(1,n))
-#' dat <- cbind(data.frame(y=y),xi)
-#' dat <- dat[sample(2*n),]
-#' dtrain <- dat[seq(n),]
-#' dtest <- dat[seq(n+1,2*n),]
-#' ytest <- dtest[,'y']
+#' names(predictors) <- paste0('v',1:m)
+#' par <- list(randompar(predictors=predictors, dJ=0.5),
+#'             randompar(predictors=predictors, h0=0.1, J0=0.1, dJ=0.5))
+#' dat <- randomsamp(predictors=predictors, response=c('ctrl','case'), par=par, 
+#'                  nsample=n)
+#' dat <- dat[sample(n),]
+#' dtrain <- dat[seq(n/2),]
+#' dtest <- dat[seq(n/2+1,n),]
 #' 
-#' model <- bbl(data=dtrain)
-#' model <- train(model)
-#' 
-#' pred <- predict(object=model, newdata=dtest)
-#' yhat <- apply(pred,1,which.max)-1
-#' score <- mean(ytest==yhat)
+#' model <- bbl(y ~ .^2, data=dtrain)
+#' pred <- predict(model, newdata=dtest)
+#' score <- mean(dtest$y==pred$yhat)
 #' score
 #' 
-#' auc <- pROC::roc(response=ytest, predictor=pred[,2], direction='<')$auc
+#' auc <- pROC::roc(response=dtest$y, predictor=pred$case, direction='<')$auc
 #' auc
 #' @importFrom utils setTxtProgressBar txtProgressBar
 #' @export
-predict.bbl <- function(object, newdata, logit=TRUE, 
-                        verbose=1, naive=FALSE, progress.bar=FALSE){
+predict.bbl <- function(object, newdata, logit=TRUE, verbose=1, naive=FALSE, 
+                        progress.bar=FALSE, ...){
   
   term <- object$terms
   idy <- attr(term,'response')
   var <- as.character(attr(term, 'variables')[-1])
   y <- object$model[,var[idy]]  # y is from training data
   predictors <- object$xlevels
-  numericx <- unlist(lapply(predictors, FUN=is.numeric))
   nvar <- length(predictors)
   if(verbose<=0) progress.bar <- FALSE
   
@@ -394,15 +431,9 @@ predict.bbl <- function(object, newdata, logit=TRUE,
   xid <- matrix(0, nrow=nsample, ncol=nvar)
   
   for(i in seq_len(nvar)){
-    if(numericx[i]){ 
-      if(!is.numeric(xid[,i])) 
-        stop('Test data not numeric for numeric predictor')
-      xid[,i] <- x[,i]
-    }else{
-      if(sum(!levels(factor(x[,i])) %in% predictors[[i]])>0)
-        stop('Levels in test data not in trained model')
-      xid[,i] <- match(x[,i],predictors[[i]]) - 1
-    }
+    if(sum(!levels(factor(x[,i])) %in% predictors[[i]])>0)
+      stop('Levels in test data not in trained model')
+    xid[,i] <- match(x[,i],predictors[[i]]) - 1
   }
   lz <- py <- rep(0, Ly)
   for(iy in seq_len(Ly)){
@@ -423,7 +454,7 @@ predict.bbl <- function(object, newdata, logit=TRUE,
   if(progress.bar) pb <- txtProgressBar(style=3)
   for(k in seq_len(nsample)){
     xk <- xid[k,]
-    E <- predict_class(xk, c(Ly), numericx, h, J, lz, py, c(naive))
+    E <- predict_class(xk, c(Ly), h, J, lz, py, c(naive))
     for(iy in seq_len(Ly)){
 #     ay[k,iy] <- -log(sum(exp(E[-iy]-E[iy])))
       e <- E[-iy] - max(E[-iy])
@@ -443,6 +474,15 @@ predict.bbl <- function(object, newdata, logit=TRUE,
   return(prob)
 }
 
+#' Display Cross-validation Result
+#' 
+#' Print cross-validation optimal result and data frame
+#' 
+#' This method prints \code{\link{crossVal}} object with the optimal
+#' regularization condition and maximum accuracy score on top and
+#' the entire score profile as a data frame below.
+#' @param x Object of class \code{cv.bbl}
+#' @param ... Other arguments to methods
 #' @export
 print.cv.bbl <- function(x, ...){
   
@@ -453,13 +493,36 @@ print.cv.bbl <- function(x, ...){
   
 }
 
+#' Predict using Cross-validation Object
+#' 
+#' Use the optimal fitted model from cross-validation run to make prediction
+#' 
+#' This method will use the fitted model with maximum accuracy score returned
+#' by a call to \code{\link{crossVal}} to make prediction on new data
+#' 
+#' @param object Object of class \code{cv.bbl}.
+#' @param ... Other parameters to \code{\link{predict.bbl}}.
+#' @return Data frame of prediction; see \code{\link{predict.bbl}}.
 #' @export
-predict.cv.bbl <- function(x, ...){
+predict.cv.bbl <- function(object, ...){
   
-  class(x) <- 'bbl'
-  predict(x, ...)
+  class(object) <- 'bbl'
+  predict(object, ...)
   
 }
+
+#' Plot Cross-validation Outcome
+#' 
+#' Plot cross-validation score as a function of regularization parameter
+#' 
+#' This function will plot accuracy score as a function of regularization parameter
+#' from a call to \code{\link{crossVal}}.
+#' 
+#' @param x Object of class \code{cv.bbl} from a call to 
+#' \code{\link{crossVal}}
+#' @param type Symbol type in \code{\link{plot}}, present here to set default.
+#' @param log Log scale argument to \code{\link{plot}}.
+#' @param ... Other arguments to \code{\link{plot}}.
 #' @export
 plot.cv.bbl <- function(x, type='b', log='x', ...){
   
