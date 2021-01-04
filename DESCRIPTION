@@ -1,10 +1,9 @@
 Package: bbl
 Title: Boltzmann Bayes Learner
-Version: 0.3.2
+Version: 0.3.3
 Authors@R: c(person("Jun","Woo",role=c("aut","cre"),
                      email="junwoo035@gmail.com",
-                     comment=c(ORCID="0000-0003-3220-2064")), 
-             person("Jinhua","Wang", role=c("ctb")))
+                     comment=c(ORCID="0000-0003-3220-2064")))
 Maintainer: Jun Woo <junwoo035@gmail.com>
 Depends: R (>= 3.6.0)
 Imports: methods, stats, utils, Rcpp (>= 0.12.16), pROC, RColorBrewer
