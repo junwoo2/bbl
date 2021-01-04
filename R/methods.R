@@ -67,9 +67,9 @@ print.bbl <- function(x, showcoeff=TRUE, maxcoeff=3L, ...){
 #' groups.   
 #' 
 #' @param object Object of class \code{bbl}
-#' @param prior.count Prior count to be used for computing coefficients
-#'        and test results. If \code{0}, will produce \code{NA}s for 
-#'        factor levels without data points.
+#' @param prior.count Prior count to be used for computing naive Bayes 
+#'        coefficients and test results. If \code{0}, will produce \code{NA}s 
+#'        for factor levels without data points.
 #' @param ... Other arguments to methods.
 #' @return Object of class \code{summary.bbl} extending \code{bbl} class; 
 #'      a list with extra components
@@ -82,61 +82,26 @@ print.bbl <- function(x, showcoeff=TRUE, maxcoeff=3L, ...){
 #'    each predictor}
 #'    \item{pvNaive}{Vector p-values for each predictor}
 #' @export
-summary.bbl <- function(object, prior.count=1, ...){
+summary.bbl <- function(object, prior.count=0, ...){
   
   naive <- sum(object$qJ)==0  # no interaction
   xlevels <- object$xlevels
   data <- object$model
   y <- data[,object$groupname]
   x <- data[,names(xlevels)]
-  if(is.null(object$freq))
-    freq <- rep(1L, length(y))
+  if(is.null(object$weights))
+    weights <- rep(1L, length(y))
   else
-    freq <- object$freq
+    weights <- object$weights
   
-  dev <- rep(0,length(xlevels))
-  names(dev) <- names(xlevels)
-  h <- vector('list',length(object$groups))
-  names(h) <- object$groups
-  h0 <- vector('list', length(xlevels))
-  names(h0) <- names(xlevels)
-  for(iy in object$groups){
-    h[[iy]] <- vector('list',length(xlevels))
-    names(h[[iy]]) <- names(xlevels)
-  }
-    
-  ntot <- sum(freq)
-  for(i in seq_along(xlevels)){
-    Li <- length(xlevels[[i]])
-    f0 <- rep(0, Li)  # pooled inference
-    names(f0) <- xlevels[[i]]
-    for(w in xlevels[[i]])
-      f0[as.character(w)] <- sum((data[,names(xlevels)[i]]==w)*freq)
-    f0 <- f0 + prior.count/Li
-    f0 <- f0 /(ntot + prior.count)
-    h0[[i]] <- log(f0[-1]/f0[1])
-    
-    L <- 0
-    for(iy in object$groups){
-      ny <- sum(freq[y==iy])
-      fv <- rep(0,Li)
-      names(fv) <- xlevels[[i]]
-      for(w in xlevels[[i]])
-        fv[as.character(w)] <- 
-        sum((data[y==iy,names(xlevels)[i]]==w)*freq[y==iy])
-      fv <- fv + prior.count/Li
-      fv <- fv /(ny+prior.count)
-      h[[iy]][[i]] <- log(fv[-1]/fv[1])
-      names(h[[iy]][[i]]) <- xlevels[[i]][-1]
-      L <- L+ ny*sum(fv*log(fv))
-    }
-    dev[i] <- 2*(L - ntot*sum(f0*log(f0)))
-  }
+  nv <- naivemf(xlevels=object$xlevels, y=y, weights=weights, data=data, 
+                prior.count=prior.count)
 
   df <- (length(object$groups)-1)*(lengths(xlevels)-1)
-  pv <- pchisq(dev, df=df, lower.tail=F)
+  pv <- pchisq(nv$dev, df=df, lower.tail=F)
   
-  ans <- c(object, list(h=h, h0=h0, chisqNaive=dev, dfNaive=df, pvNaive=pv))
+  ans <- c(object, list(h=nv$h, h0=nv$h0, chisqNaive=nv$dev, dfNaive=df, 
+                        pvNaive=pv))
   class(ans) <- 'summary.bbl'
   return(ans)
 }
@@ -189,16 +154,18 @@ print.summary.bbl <- function(x, ...){
 #' 
 #' Compute log likelihood from a fitted \code{bbl} object
 #' 
-#' This method will use inferred parameters from calls to \code{bbl} and data
-#' compute the log likelihood.
+#' This method uses inferred parameters from calls to \code{bbl} 
+#' and data to compute the log likelihood.
 #' 
 #' @param object Object of class \code{bbl}
 #' @param ... Other arguments to methods
-#' @return Log likelihood value
+#' @return An object of class \code{logLik}, the Log likelihood value
+#'         and the attribute "df" (degrees of freedom), the number of
+#'         parameters.
 #' @export
 logLik.bbl <- function(object, ...){
 
-  if(object$method!='mf') stop('Object was not trained with mf method')
+# if(object$method!='mf') stop('Object was not trained with mf method')
   term <- object$terms
   idy <- attr(term,'response')
   var <- as.character(attr(term, 'variables')[-1])
@@ -232,7 +199,22 @@ logLik.bbl <- function(object, ...){
     }
     E <- E - ny*object$lz[yi]
   }
-  return(as.numeric(E))
+  E <- as.numeric(E)
+  attr(E, 'class') <- 'logLik'
+  
+  df <- 0
+  for(i in seq_len(nvar)){
+    xi <- xvar[[i]]
+    df <- df + length(predictors[[xi]])-1
+    if(i==nvar) next()
+    for(j in seq(i+1,nvar)){
+      xj <- xvar[[j]]
+      df <- df + (length(predictors[[i]])-1)*(length(predictors[[xj]])-1)
+    }
+  }
+  df <- df*length(object$groups)
+  attr(E, 'df') <- df
+  return(E)
 }
 
 #' Plot bbl object
@@ -369,10 +351,9 @@ plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100, ...){
 #'        are not provided, the columns should exactly match 
 #'        \code{model@data} predictor parts. If \code{NULL}, replaced
 #'        by \code{model@data} (self-prediction).
-#' @param logit Return predictors whose logistic function gives probability;
-#'              otherwise return probability itself.
+#' @param type Return value type. If \code{'link'}, 
+#'        the logit scale probabilities. If \code{'prob'} the probability itself.
 #' @param verbose Verbosity level
-#' @param naive Nnaive Bayes. Skip all interaction terms.
 #' @param progress.bar Display progress of response group probability. Useful
 #'        for large samples.
 #' @param ... Other arguments to methods
@@ -406,7 +387,7 @@ plot.bbl <- function(x, layout=NULL, hcol=NULL, Jcol=NULL, npal=100, ...){
 #' auc
 #' @importFrom utils setTxtProgressBar txtProgressBar
 #' @export
-predict.bbl <- function(object, newdata, logit=TRUE, verbose=1, naive=FALSE, 
+predict.bbl <- function(object, newdata, type='link', verbose=1, 
                         progress.bar=FALSE, ...){
   
   term <- object$terms
@@ -416,6 +397,7 @@ predict.bbl <- function(object, newdata, logit=TRUE, verbose=1, naive=FALSE,
   predictors <- object$xlevels
   nvar <- length(predictors)
   if(verbose<=0) progress.bar <- FALSE
+  naive <- sum(object$qJ)==0
   
   if(missing(newdata)) data <- object$model
   else data <- newdata
@@ -437,16 +419,18 @@ predict.bbl <- function(object, newdata, logit=TRUE, verbose=1, naive=FALSE,
   }
   lz <- py <- rep(0, Ly)
   for(iy in seq_len(Ly)){
-    if(length(h[[iy]])!=NCOL(xid) | length(J[[iy]])!=NCOL(xid))
+    if(length(h[[iy]])!=NCOL(xid))
+      stop('Parameters and data sizes do not match')
+    if(!naive) if(length(J[[iy]])!=NCOL(xid))
       stop('Parameters and data sizes do not match')
     lz[iy] <- object$lz[iy]
-    if(!is.null(object$freq))
-      py[iy] <- sum((y==object$groups[iy])*object$freq)
+    if(!is.null(object$weights))
+      py[iy] <- sum((y==object$groups[iy])*object$weights)
     else
       py[iy] <- sum(y==object$groups[iy])
                   # marginal distribution P(y)
   }
-  if(!is.null(object$freq)) py <- py/sum(object$freq)
+  if(!is.null(object$weights)) py <- py/sum(object$weights)
   else py <- py/length(y)
 
   ay <- matrix(0, nrow=nsample, ncol=Ly)
@@ -454,6 +438,7 @@ predict.bbl <- function(object, newdata, logit=TRUE, verbose=1, naive=FALSE,
   if(progress.bar) pb <- txtProgressBar(style=3)
   for(k in seq_len(nsample)){
     xk <- xid[k,]
+    if(naive) J <- vector('list',Ly)
     E <- predict_class(xk, c(Ly), h, J, lz, py, c(naive))
     for(iy in seq_len(Ly)){
 #     ay[k,iy] <- -log(sum(exp(E[-iy]-E[iy])))
@@ -465,7 +450,7 @@ predict.bbl <- function(object, newdata, logit=TRUE, verbose=1, naive=FALSE,
   }
   if(progress.bar) close(pb)
   
-  if(!logit) ay <- 1/(1+exp(-ay))  # posterior probability
+  if(type!='link') ay <- 1/(1+exp(-ay))  # posterior probability
   rownames(ay) <- seq_len(nsample)
   colnames(ay) <- object$groups
   yhat <- factor(object$groups[apply(ay,1,which.max)],levels=object$groups)
@@ -522,12 +507,160 @@ predict.cv.bbl <- function(object, ...){
 #' \code{\link{crossVal}}
 #' @param type Symbol type in \code{\link{plot}}, present here to set default.
 #' @param log Log scale argument to \code{\link{plot}}.
+#' @param pch Symbol type code in \code{\link{par}}.
+#' @param bg Symbol background color in \code{\link{par}}.
+#' @param las Orientation of axis labels in \code{\link{par}}.
+#' @param xlab X axis label
+#' @param ylab Y axis label
 #' @param ... Other arguments to \code{\link{plot}}.
 #' @export
-plot.cv.bbl <- function(x, type='b', log='x', ...){
+plot.cv.bbl <- function(x, type='b', log='x', pch=21, bg='white', xlab=NULL,
+                        ylab=NULL, las=1, ...){
   
-  plot(x$cvframe, type=type, log=log, ...)
-  segments(x0=x$regstar,x1=x$regstar,y0=min(x$cvframe[,2]),y1=x$maxscore,
-           lty=2, col='red')
+  lstar <- x$regstar
+  ymax <- x$maxscore
+  x <- x$cvframe
+  ylim <- range(x[,-1])
+  if(is.null(xlab)){
+    if(names(x)[1]=='lambda') xlab <- expression(lambda)
+    else xlab <- expression(epsilon)
+  }
+  plot(x[,1:2], ylim=ylim, type='n', log=log, xlab=xlab, las=las, ...)
+  if(NCOL(x)>2){
+    segments(x0=x[,1],x1=x[,1], y0=x[,3],y1=x[,4], lty=1, col='gray')
+    if(log==''){ 
+      dx <- mean(diff(x[,1]))*0.2
+      segments(x0=x[,1]-dx,x1=x[,1]+dx,y0=x[,3],y1=x[,3],lty=1,col='gray')
+      segments(x0=x[,1]-dx,x1=x[,1]+dx,y0=x[,4],y1=x[,4],lty=1,col='gray')
+    }else{
+      dx <- 1.1
+      segments(x0=x[,1]/dx,x1=x[,1]*dx,y0=x[,3],y1=x[,3],lty=1,col='gray')
+      segments(x0=x[,1]/dx,x1=x[,1]*dx,y0=x[,4],y1=x[,4],lty=1,col='gray')
+    }
+  }
+  points(x[,1:2],type=type, pch=pch, bg=bg, ...)
+  segments(x0=lstar,x1=lstar,y0=min(x[,-1]), y1=ymax, lty=3, col='red')
   
+}
+
+#' Fitted Response Group Probabilities
+#' 
+#' Response group probabilities from BBL fit
+#' 
+#' This method returns predicted response group probabilities of trainig data
+#' @param object Object of class \code{bbl}.
+#' @param ... Other arguments
+#' @return Matrix of response group probabities with data points in rows and
+#'         response groups in columns
+#' @aliases fitted.values
+#' @examples
+#' titanic <- as.data.frame(Titanic)
+#' fit <- bbl(Survived ~ Class + Sex + Age, data=titanic, weights=titanic$Freq)
+#' 
+#' @export
+fitted.bbl <- function(object, ...){
+  
+  pr <- predict(object, type='prob')
+  x <- pr[, -NCOL(pr)]
+  
+  return(x)
+}
+
+#' Formula in BBL Fitting
+#' 
+#' Returns the formula used in BBL fit
+#' 
+#' @param x Object of class \code{bbl}
+#' @param ... Other arguments
+#' @return Formula object
+#' @examples
+#' titanic <- as.data.frame(Titanic)
+#' fit <- bbl(Survived ~ Class + Sex + Age, data=titanic, weights=titanic$Freq)
+#' formula(fit)
+#' @export
+formula.bbl <- function(x, ...){
+  
+  return(formula(x$terms))
+  
+} 
+
+#' Model Frame for BBL
+#' 
+#' Returns the model frame used in BBL fit
+#' 
+#' @param formula Object of class \code{bbl}
+#' @param ... Other arguments
+#' @return Data frame used for fitting
+#' @examples
+#' titanic <- as.data.frame(Titanic)
+#' fit <- bbl(Survived ~ Class + Sex + Age, data=titanic[,1:4], weights=titanic$Freq)
+#' head(model.frame(fit))
+model.frame.bbl <- function(formula, ...){
+  
+  return(formula$model)
+  
+}
+
+#' Number of Observations in BBL Fit
+#' 
+#' Returns the number of observations from a BBL fit
+#' 
+#' @param object Object of class \code{bbl}
+#' @param ... Other arguments
+#' @return An integer of number of observations
+#' @examples
+#' titanic <- as.data.frame(Titanic)
+#' fit <- bbl(Survived ~ Class + Sex + Age, data=titanic[,1:4], weights=titanic$Freq)
+#' nobs(fit)
+#' @export
+nobs.bbl <- function(object, ...){
+  
+  return(NROW(object$model))
+  
+}
+
+#' Residuals of BBL fit
+#' 
+#' Binary-valued vector of fitted vs. true response group
+#' 
+#' Discrete response group identity for each data point is compared with 
+#' the fitted group and 0 (discordant) or 1 (concordant) is returned
+#' 
+#' @param object Object of class \code{bbl}
+#' @param ... Other arguments
+#' @return Vector binary values for each data point
+#' @examples 
+#' titanic <- as.data.frame(Titanic)
+#' dat <- freq2raw(titanic[,1:4], freq=titanic$Freq)
+#' fit <- bbl(Survived ~ .^2, data=dat)
+#' x <- residuals(fit)
+#' table(x)
+#' @export
+residuals.bbl <- function(object, ...){
+  
+  yhat <- predict(object)$yhat
+  idy <- attributes(object$term)$response
+  resp <- as.character(attributes(object$term)$variables[[idy+1]])
+  y <- model.frame(object)[,resp]
+  
+  return(as.integer(yhat==y))
+}
+
+#' Weights in BBL Fit
+#' 
+#' This method returns weights used in BBL fit. 
+#' 
+#' Note that weithts are integral
+#' frequency values specifying repeat number of each instance in \code{bbl}.
+#' If no weights were used (default of 1s), \code{NULL} is returned.
+#' 
+#' @param object Object of class \code{bbl}.
+#' @param ... Other arguments
+#' @return Vector of weights for each instance
+#' @export
+weights.bbl <- function(object, ...){
+  
+  if(!'weights' %in% names(object)) return(NULL)
+  return(object$weights)
+    
 }

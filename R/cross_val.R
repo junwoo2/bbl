@@ -12,7 +12,7 @@
 #' 
 #' @param formula Formula for model. Note that intercept has no effect.
 #' @param data Data frame of data. Column names must match \code{formula}.
-#' @param freq Frequency vector of how many times each row of \code{data} must
+#' @param weights Frequency vector of how many times each row of \code{data} must
 #'        be repeated. If \code{NULL}, defaults to vector of 1s. 
 #'        Fractional values are not supported.
 #' @param novarOk Proceed even when there are predictors with only one factor level.
@@ -27,8 +27,6 @@
 #' @param nfold Number of folds for training/validation split.
 #' @param method \code{c('pseudo','mf')} for pseudo-likelihood maximization or
 #'        mean field.
-#' @param naive Naive Bayes (no interactions). Equivalent to \code{method = 'mf'}
-#'        together with \code{eps = 0}.
 #' @param use.auc Use AUC as the measure of prediction accuracy. Only works
 #'        if response groups are binary. If \code{FALSE}, mean prediction group
 #'        accuracy will be used as score.
@@ -41,10 +39,9 @@
 #'         \item{regstar}{Value of regularization parameter, \code{lambda}
 #'         and \code{eps} for \code{method='pseudo'} and \code{method='mf'},
 #'         respectively, at which the accuracy score is maximized}
-#'         \item{maxscore}{Value of maximum accuracy score}
-#'         \item{cvframe}{Data frame of regularization parameters and scores scanned}
-#'         The components of \code{\link{bbl}} store the optimal model trained
-#'         if \code{storeOpt=TRUE}.
+#'         \item{maxscore}{Value of maximum accuracy}
+#'         \item{cvframe}{Data frame of regularization parameters and scores scanned.
+#'             If \code{use.auc=TRUE}, also contains 95% c.i.}
 #' @examples
 #' set.seed(513)
 #' m <- 5
@@ -57,27 +54,43 @@
 #' cv <- crossVal(y ~ .^2, data=dat, method='mf', eps=seq(0.1,0.9,0.1))
 #' cv
 #' @export
-crossVal <- function(formula, data, freq=NULL, novarOk=FALSE, 
+crossVal <- function(formula, data, weights, novarOk=FALSE, 
                      lambda=1e-5, lambdah=0, eps=0.9, nfold=5, 
-                     method='pseudo', naive=FALSE, use.auc=TRUE, 
+                     method='pseudo', use.auc=TRUE, 
                      verbose=1, progress.bar=FALSE, storeOpt=TRUE, ...){
-  
-  
+
   cl <- match.call()
-  if(missing(data)) data <- environment(formula)
-  if(!is.null(freq)){
-    if(length(freq)!=NROW(data))
-      stop('Length of freq does not match data')
-    zero <- freq==0
+  if(missing(data)) 
+    stop('data argument required')
+  
+  if(!missing(weights)){
+    mfrq <- which(names(cl) == 'weights')
+    if(length(mfrq) != 1) stop('Error in weights argument')
+    frq <- as.character(cl[mfrq])
+    if(frq %in% colnames(data)){
+      tmp <- data[, frq]
+      data <- data[,-which(colnames(data) == frq)]
+      weights <- tmp
+    }
+    if(length(weights)!=NROW(data))
+      stop('Length of weights does not match data')
+    zero <- weights==0
     data <- data[!zero,]
-    freq <- freq[!zero]   # remove rows with zero freq
+    weights <- weights[!zero]   # remove rows with zero weights
+  } else{
+    weights <- NULL
   }
+
 # data <- as.data.frame(lapply(data, function(x) if(is.numeric(x)) factor(x)))
   term <- terms(formula, data=data)
   idy <- attributes(term)$response
   vars <- as.character(attributes(term)$variables)
+  colnames(data) <- fixnames(colnames(data))
   resp <- vars[[idy+1]]
-  vars <- vars[!(vars %in% c('list',resp))]
+  if(!resp %in% colnames(data)) stop('Response var not in data')
+# vars <- vars[!(vars %in% c('list',resp))]
+  vars <- vars[-1]   # 'list' can be in colnames 
+  vars <- vars[!vars==resp]
 # xlevels <- .getXlevels(term, m=data)
   xlevels <- getxlevels(vars, data=data)
   formula <- formula(term)
@@ -100,17 +113,12 @@ crossVal <- function(formula, data, freq=NULL, novarOk=FALSE,
   if(Ly==1) warning('Only one response group in data')
   if(Ly!=2) use.auc <- FALSE
   
-  if(!is.null(freq)){
-    if(!all.equal(freq, as.integer(freq))) stop('Non-integer freq')
-    if(length(freq)!=NROW(data))
-      stop('Length of freq does not match data')
-    yx <- freq2raw(data=yx, freq=freq)
+  if(!is.null(weights)){
+    if(!all.equal(weights, as.integer(weights))) stop('Non-integer weights')
+    if(length(weights)!=NROW(data))
+      stop('Length of weights does not match data')
+    yx <- freq2raw(data=yx, freq=weights)
     y <- yx[,resp]
-  }
-  
-  if(naive){
-    method <- 'mf'
-    eps <- 0
   }
   
   if(method=='pseudo'){ 
@@ -118,10 +126,8 @@ crossVal <- function(formula, data, freq=NULL, novarOk=FALSE,
     if(length(lambdah)>1) 
       stop('Only a single value of lambdah allowed')
   }
-  else if(method=='mf'){ 
-    if(!naive) reglist <- eps
-    else reglist <- 0
-  }
+  else if(method=='mf') reglist <- eps
+
   else stop('Unknown method')
   
   res <- NULL    # data frame of cv result
@@ -175,24 +181,29 @@ crossVal <- function(formula, data, freq=NULL, novarOk=FALSE,
                        verbose=verbose-1, lambdah=lambdah, ...)
 
       pr <- predict(object=obtrain, newdata=dval, logit=!use.auc,
-                          progress.bar=progress.bar, verbose=verbose-1)
+                    progress.bar=progress.bar, verbose=verbose-1)
       yxv <- data.frame(ytrue=factor(yx[ival,1],levels=groups))
       pred <- rbind(pred, cbind(yxv, pr))
     }
     if(use.auc){
-      score <- pROC::roc(response=pred[,1], levels=groups, 
-                               predictor=pred[,3], direction='<')$auc
+      roc <- pROC::roc(response=pred[,1], levels=groups, 
+                 predictor=pred[,3], direction='<', ci=TRUE)
+      score <- roc$auc
+      ci <- roc$ci
       if(verbose>0) cat(' AUC = ',score,'\n',sep='')
     }
     else{
       score <- mean(pred[,1]==pred$yhat)
       if(verbose>0) cat(' Prediction score = ',score,'\n',sep='')
+      ci <- NULL
     }
     if(method=='pseudo'){
-      if(use.auc) rx <- data.frame(lambda=reg, auc=score)
+      if(use.auc) rx <- data.frame(lambda=reg, AUC=score, ci1=ci[1],
+                                   ci2=ci[3])
       else rx <- data.frame(lambda=reg, score=score)
     } else{
-      if(use.auc) rx <- data.frame(epsilon=reg, auc=score)
+      if(use.auc) rx <- data.frame(epsilon=reg, AUC=score, ci1=ci[1],
+                                   ci2=ci[3])
       else rx <- data.frame(epsilon=reg, score=score)
     }
     if(score > maxscore){
@@ -229,3 +240,16 @@ getxlevels <- function(vars, data){
   }
   return(xlevels)
 }
+
+# fix numeric/special char column names
+fixnames <- function(cdat){
+
+  for(i in seq_along(cdat)){
+    x <- cdat[i]
+    if(substring(x,1,1)=='`' & substring(x,nchar(x),nchar(x))=='`') next()  
+    if(make.names(x)!=x)
+      cdat[i] <- paste0('`',x,'`')
+  }
+  
+  return(cdat)
+}  

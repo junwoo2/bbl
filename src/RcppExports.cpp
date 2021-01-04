@@ -6,17 +6,18 @@
 using namespace Rcpp;
 
 // mfwrapper
-List mfwrapper(NumericMatrix xi, IntegerVector freq, NumericMatrix qJ, IntegerVector Lv, NumericVector Eps);
-RcppExport SEXP _bbl_mfwrapper(SEXP xiSEXP, SEXP freqSEXP, SEXP qJSEXP, SEXP LvSEXP, SEXP EpsSEXP) {
+List mfwrapper(NumericMatrix xi, IntegerVector weights, NumericMatrix qJ, IntegerVector Lv, NumericVector Eps, NumericVector priorCount);
+RcppExport SEXP _bbl_mfwrapper(SEXP xiSEXP, SEXP weightsSEXP, SEXP qJSEXP, SEXP LvSEXP, SEXP EpsSEXP, SEXP priorCountSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< NumericMatrix >::type xi(xiSEXP);
-    Rcpp::traits::input_parameter< IntegerVector >::type freq(freqSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type weights(weightsSEXP);
     Rcpp::traits::input_parameter< NumericMatrix >::type qJ(qJSEXP);
     Rcpp::traits::input_parameter< IntegerVector >::type Lv(LvSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type Eps(EpsSEXP);
-    rcpp_result_gen = Rcpp::wrap(mfwrapper(xi, freq, qJ, Lv, Eps));
+    Rcpp::traits::input_parameter< NumericVector >::type priorCount(priorCountSEXP);
+    rcpp_result_gen = Rcpp::wrap(mfwrapper(xi, weights, qJ, Lv, Eps, priorCount));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -60,7 +61,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_bbl_mfwrapper", (DL_FUNC) &_bbl_mfwrapper, 5},
+    {"_bbl_mfwrapper", (DL_FUNC) &_bbl_mfwrapper, 6},
     {"_bbl_pseudo_mle", (DL_FUNC) &_bbl_pseudo_mle, 11},
     {"_bbl_predict_class", (DL_FUNC) &_bbl_predict_class, 7},
     {NULL, NULL, 0}

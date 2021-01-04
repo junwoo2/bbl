@@ -100,14 +100,14 @@ NumericVector predict_class(IntegerVector xid, IntegerVector Ly, List h, List J,
   for(int iy=0; iy<ly; iy++){
     double e=0;
     List hy = h[iy];
-    List Jy = J[iy];
     for(int i=0; i<m; i++){
       if(xid(i)==0) continue;
       NumericVector hi = hy[i];
       if(hi.length() < xid(i)) continue;
       e += hi(xid(i)-1);
-      List Ji = Jy[i];
       if(Naive[0]) continue;
+      List Jy = J[iy];
+      List Ji = Jy[i];
       for(int j=0; j<m; j++){
         if(j==i || xid(j)==0) continue;
         NumericMatrix Jj = Ji[j];

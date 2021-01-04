@@ -13,14 +13,17 @@ using namespace std;
 
 void invC(const vector<vector<short> > &ai, const vector<int> &frq,
           const vector<short> &L, double &E, double &lnz, vector<vector<double> > &h,
-          vector<vector<vector<double> > > &J, double eps){
+          vector<vector<vector<double> > > &J, double eps, double priorCount){
 
   int nsnp=L.size();
   int ndim=0;
   vector<vector<double> > f1(nsnp);
-  vector<vector<vector<double> > > f2(nsnp);
+  bool naive= (eps==0);
+  vector<vector<vector<double> > > f2;
   for(int i=0; i<nsnp; i++){
-    f12(i, ai, frq, f1[i], f2[i], L, false, true);
+    vector<vector<double> > tmp;
+    f12(i, ai, frq, f1[i], tmp, L, naive, priorCount);
+    if(!naive) f2.push_back(tmp);
     ndim += L[i];
   }
 
@@ -42,27 +45,26 @@ void invC(const vector<vector<short> > &ai, const vector<int> &frq,
   }
   tr/=ndim;
 
-  int idx=0;
-  for(int i=0;i<nsnp;i++){
-    int Li= L[i];
-    for(int l0=0;l0<Li;l0++){
-      int jdx = 0;
-      for(int j=0;j<nsnp;j++){ 
-        int Lj = L[j];
-        for(int l1=0;l1<Lj;l1++){
-          double x=eps*(f2[i][j][Lj*l0+l1]-f1[i][l0]*f1[j][l1]);
-          if(eps==0.0) continue;
-          if(i==j && l0==l1)
-            x += (1-eps)*tr;
-          gsl_matrix_set(A, idx, jdx++, x);
-        }
-      }
-      idx++;
-    }
-  }
-
-  int s;
   if(eps>0){
+    int idx=0;
+    for(int i=0;i<nsnp;i++){
+      int Li= L[i];
+      for(int l0=0;l0<Li;l0++){
+        int jdx = 0;
+        for(int j=0;j<nsnp;j++){ 
+          int Lj = L[j];
+          for(int l1=0;l1<Lj;l1++){
+            double x=eps*(f2[i][j][Lj*l0+l1]-f1[i][l0]*f1[j][l1]);
+            if(eps==0.0) continue;
+            if(i==j && l0==l1)
+              x += (1-eps)*tr;
+            gsl_matrix_set(A, idx, jdx++, x);
+          }
+        }
+        idx++;
+      }
+    }
+    int s;
     gsl_linalg_LU_decomp(A,perm,&s);
     gsl_linalg_LU_invert(A,perm,Ai);
   }
@@ -70,7 +72,7 @@ void invC(const vector<vector<short> > &ai, const vector<int> &frq,
   h.resize(nsnp);
   J.resize(nsnp);
   lnz=0;
-  idx=0;
+  int idx=0;
   for(int i=0;i<nsnp;i++){
     int Li= L[i];
     h[i].resize(Li);
@@ -111,10 +113,12 @@ void invC(const vector<vector<short> > &ai, const vector<int> &frq,
       int a0=ai[k][i];
       if(a0==0) continue;
       E += h[i][a0-1];
-      for(int j=i+1;j<nsnp;j++){
-        int a1=ai[k][j];
-        if(a1==0) continue;
-        E += J[i][j][L[j]*(a0-1)+a1-1];
+      if(eps>0){
+        for(int j=i+1;j<nsnp;j++){
+          int a1=ai[k][j];
+          if(a1==0) continue;
+          E += J[i][j][L[j]*(a0-1)+a1-1];
+        }
       }
     }
   }

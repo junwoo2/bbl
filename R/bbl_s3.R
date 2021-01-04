@@ -10,21 +10,24 @@
 #' calling if this happens.
 #' 
 #' @param formula Formula for modeling
-#' @param data Data for fitting. If missing, must be explicitly included in
-#'            \code{formula}.
-#' @param freq Vector of non-negative integer frequencies, recoding 
-#'        the number of times each row of data must be repeated. If \code{NULL},
-#'        assumed to be all 1. Fractional weights are not supported.
+#' @param data Data for fitting
+#' @param weights Vector of weights for each instance in data. Restricted to 
+#'        non-negative integer frequencies, recoding the number of times 
+#'        each row of data must be repeated. If \code{NULL},
+#'        assumed to be all 1. Fractional weights are not supported. Can be
+#'        a named column in \code{data}
 #' @param xlevels List of factor levels for predictors. If \code{NULL},
 #'        will be inferred from data with factor levels ordered alphanumerically.
 #' @param verbose Output verbosity level. Will be send to down-stream function
-#'        calls with one level lower.
+#'        calls with one level lower
 #' @param method BB inference algorithm; pseudo-likelihood inference (\code{'pseudo'})
-#'        or mean field (\code{'mf'}).
+#'        or mean field (\code{'mf'})
 #' @param novarOk If \code{TRUE}, will proceed with predictors having only one
-#'        level.
+#'        level
 #' @param testNull Repeat the inference for the `pooled' sample; i.e., under the
-#'        null hypothesis of all rows in data belonging to a single group.
+#'        null hypothesis of all rows in data belonging to a single group
+#' @param prior.count Prior count for computing single predictor and pairwise
+#'        frequencies
 #' @param ... Other parameters to \code{\link{mlestimate}}.
 #' @return
 #' A list of class \code{bbl} with the following elements:
@@ -52,14 +55,12 @@
 #'   \item{model}{Model data frame derived from \code{formula} and \code{data}.}
 #'   \item{lkh}{Log likelihood.}
 #'   \item{lz}{Vector log partition function. Used in \code{\link{predict}}.}
-#'   \item{freq}{Frequency vector input.}
+#'   \item{weights}{Vector of integral weights (frequencies).}
 #'   \item{call}{Function call.}
 #'   \item{df}{Degrees of freedom.} 
 #' @examples
 #' titanic <- as.data.frame(Titanic)
-#' freq <- titanic$Freq
-#' titanic <- titanic[,1:4]
-#' b <- bbl(Survived ~ .^2, data=titanic, freq=freq)
+#' b <- bbl(Survived ~ (Class + Sex + Age)^2, data = titanic, weights = Freq)
 #' b
 #' @import Rcpp
 #' @import stats
@@ -67,25 +68,42 @@
 #' @importFrom grDevices colorRampPalette gray.colors
 #' @useDynLib bbl
 #' @export
-bbl <- function(formula, data, freq=NULL, xlevels=NULL, verbose=1, 
-                method='pseudo', novarOk=FALSE, testNull=TRUE, ...){
+bbl <- function(formula, data, weights, xlevels = NULL, verbose = 1, 
+                method = 'pseudo', novarOk = FALSE, testNull = TRUE, 
+                prior.count = 1, ...){
 
   cl <- match.call()
-  if(missing(data)) data <- environment(formula)
-  if(!is.null(freq)){
-    if(length(freq)!=NROW(data))
-      stop('Length of freq does not match data')
-    zero <- freq==0
+  if(missing(data)) 
+    stop('data argument required')
+
+  if(!missing(weights)){
+    mfrq <- which(names(cl) == 'weights')
+    if(length(mfrq) != 1) stop('Error in weights argument')
+    frq <- as.character(cl[mfrq])
+    if(frq %in% colnames(data)){
+      tmp <- data[, frq]
+      data <- data[,-which(colnames(data) == frq)]
+      weights <- tmp
+    }
+
+    if(length(weights)!=NROW(data))
+      stop('Length of weights does not match data')
+    zero <- weights==0
     data <- data[!zero,]
-    freq <- freq[!zero]   # remove rows with zero freq
+    weights <- weights[!zero]   # remove rows with zero weights
+  } else{
+    weights <- NULL
   }
   
   term <- stats::terms(formula, data=data)
   idy <- attributes(term)$response
   vars <- as.character(attributes(term)$variables)
+  colnames(data) <- fixnames(colnames(data))
   resp <- vars[[idy+1]]
-  vars <- vars[!(vars %in% c('list',resp))]
-  # xlevels <- .getXlevels(term, m=data)
+# vars <- vars[!(vars %in% c('list',resp))]
+  vars <- vars[-1]  # 'list' can be in colnames
+  vars <- vars[!vars==resp]
+# xlevels <- .getXlevels(term, m=data)
   if(is.null(xlevels))
     xlevels <- getxlevels(vars, data=data)
   
@@ -108,7 +126,7 @@ bbl <- function(formula, data, freq=NULL, xlevels=NULL, verbose=1,
   
   label <- attr(term,'term.labels')
   ilabel <- label[vapply(label,FUN=function(x){grepl(':',x)}, logical(1))]
-  ilabel <- gsub('`','',ilabel)
+# ilabel <- gsub('`','',ilabel)
   ijlabel <- strsplit(ilabel,split=':')
   qJ <- matrix(FALSE, nrow=m, ncol=m)
   rownames(qJ) <- colnames(qJ) <- names(xlevels)
@@ -116,16 +134,34 @@ bbl <- function(formula, data, freq=NULL, xlevels=NULL, verbose=1,
     qJ[ijlabel[[k]][1],ijlabel[[k]][2]] <- TRUE
   qJ <- qJ | t(qJ)    # TRUE for all interacting pairs of predictors
   naive <- sum(qJ)==0
+  groups <- levels(factor(y))
   
-  b <- bbl.fit(x=x, y=y, qJ=qJ, freq=freq, xlevels=xlevels,
-               verbose=verbose-1, method=method, ...) # alternative
-  if(testNull)
-    b0 <- bbl.fit(x=x, y=rep('pooled',length(y)), qJ=qJ, freq=freq, 
-                xlevels=xlevels, verbose=verbose-1, method=method, ...) # null
-  else b0 <- NULL
   bb <- list()
   class(bb) <- 'bbl'
-  bb$coefficients <- list(h=b$h, J=b$J, h0=b0$h[[1]], J0=b0$J[[1]])
+  
+  if(naive & method=='mf'){
+    b <- naivemf(xlevels=xlevels, y=y, weights=weights, data=data, 
+                 prior.count=prior.count)
+    lz <- rep(0, Ly)
+    for(iy in seq_len(Ly)){
+      for(i in seq_len(m)) 
+        lz[[iy]] <- lz[[iy]] + log(1+sum(exp(b$h[[iy]][[i]])))
+      lz[[iy]] <- lz[[iy]]/m
+    }
+    bb$coefficients <- list(h=b$h, h0=b$h0)
+    bb$lz <- lz
+  } else{
+    b <- bbl.fit(x=x, y=y, qJ=qJ, weights=weights, xlevels=xlevels,
+               verbose=verbose-1, method=method, prior.count=prior.count,
+               ...) # alternative
+    if(testNull)
+      b0 <- bbl.fit(x=x, y=rep('pooled',length(y)), qJ=qJ, weights=weights, 
+                xlevels=xlevels, verbose=verbose-1, method=method,
+                prior.count=prior.count, ...) # null
+    else b0 <- NULL
+    bb$coefficients <- list(h=b$h, J=b$J, h0=b0$h[[1]], J0=b0$J[[1]])
+    bb$lz <- b$lz
+  }
   bb$xlevels <- xlevels
   bb$terms <- term
   bb$groups <- levels(factor(y))
@@ -133,8 +169,7 @@ bbl <- function(formula, data, freq=NULL, xlevels=NULL, verbose=1,
   bb$qJ <- qJ
   bb$model <- data[,c(resp, names(xlevels))]
   bb$lkh <- b$lkh
-  bb$lz <- b$lz
-  bb$freq <- freq
+  bb$weights <- weights
   bb$call <- cl
   if(naive) bb$method <- 'mf'
   else bb$method <- method
@@ -142,6 +177,7 @@ bbl <- function(formula, data, freq=NULL, xlevels=NULL, verbose=1,
   for(i in seq_len(m)){
     ni <- length(xlevels[[i]])-1
     df <- df + ni
+    if(naive) next()
     if(i==m) next()
     for(j in seq(i+1,m))
       if(qJ[i,j]) df <- df + ni*(length(xlevels[[j]])-1)
@@ -163,7 +199,7 @@ bbl <- function(formula, data, freq=NULL, xlevels=NULL, verbose=1,
 #' @param y Vector of response variables.
 #' @param qJ Matrix of logicals indicating which predictor combinations
 #'           are interacting. 
-#' @param freq Vector of non-negative integer frequencies, recoding 
+#' @param weights Vector of non-negative integer frequencies, recoding 
 #'        the number of times each row of data must be repeated. 
 #'        If \code{NULL}, assumed to be all 1. Fractional weights are not 
 #'        supported.
@@ -172,6 +208,8 @@ bbl <- function(formula, data, freq=NULL, xlevels=NULL, verbose=1,
 #' @param verbose Verbosity level of output. Will be propagated to 
 #'        \code{\link{mlestimate}} with one level down.
 #' @param method \code{c('pseudo','mf')}; inference method.
+#' @param prior.count Prior count for computing single predictor and pairwise
+#'        frequencies
 #' @param ... Other arguments to \code{\link{mlestimate}}.
 #' @return List of named components \code{h}, \code{J}, \code{lkh}, and
 #'         \code{lz}; see \code{\link{bbl}} for information regarding these
@@ -181,11 +219,11 @@ bbl <- function(formula, data, freq=NULL, xlevels=NULL, verbose=1,
 #' freq <- titanic$Freq
 #' x <- titanic[,1:3]
 #' y <- titanic$Survived
-#' b <- bbl.fit(x=x,y=y, freq=freq)
+#' b <- bbl.fit(x=x,y=y, weights=freq)
 #' b
 #' @export
-bbl.fit <- function(x, y, qJ=NULL, freq=NULL, xlevels=NULL, verbose=1, 
-                    method='pseudo', ...){
+bbl.fit <- function(x, y, qJ=NULL, weights=NULL, xlevels=NULL, verbose=1, 
+                    method='pseudo', prior.count=1, ...){
   
   le <- levels(factor(y))
   Ly <- length(le)
@@ -209,8 +247,8 @@ bbl.fit <- function(x, y, qJ=NULL, freq=NULL, xlevels=NULL, verbose=1,
     if(ny==0) 
       stop(paste0('No instance of "',le[iy],'" in training data'))
     da <- x[y==le[iy],]
-    if(!is.null(freq))
-      frq <- freq[y==le[iy]]
+    if(!is.null(weights))
+      frq <- weights[y==le[iy]]
     else frq <- rep(1, sum(y==le[iy]))
     if(verbose > 1) cat(' Inference for y = ',le[iy],':\n',sep='')
 #   xda <- data.matrix(da) - 1
@@ -220,14 +258,15 @@ bbl.fit <- function(x, y, qJ=NULL, freq=NULL, xlevels=NULL, verbose=1,
       xda[,i] <- match(da[,i],xlevels[[i]])-1
       L[i] <- length(xlevels[[i]])
     }
-    b <- mlestimate(xi=xda, freq=frq, qJ=qJ, verbose=verbose-1, 
-                    method=method, L=L, ...)
+    b <- mlestimate(xi=xda, weights=frq, qJ=qJ, verbose=verbose-1, 
+                    method=method, L=L, prior.count=prior.count, ...)
     names(b$h) <- names(b$J) <- names(xlevels)
     for(i in seq_len(m)){
       ni <- xlevels[[i]][-1][seq_along(b$h[[i]])]
       names(b$h[[i]]) <- ni
       names(b$J[[i]]) <- names(xlevels)
       for(j in seq_len(m)){
+        if(is.null(b$J[[i]][[j]])) next()
         if(NROW(b$J[[i]][[j]])>0)
           rownames(b$J[[i]][[j]]) <- ni[seq_len(NROW(b$J[[i]][[j]]))]
         if(NCOL(b$J[[i]][[j]])>0)

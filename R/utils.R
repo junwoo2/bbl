@@ -6,7 +6,8 @@
 #' The ouput data frame can be used as input to \code{\link{bbl}}.
 #' 
 #' @param data Data frame with factors in columns 
-#' @param freq Vector of frequency of each row in \code{data}
+#' @param freq Vector of frequency of each row in \code{data}; can be a named column 
+#'   in \code{data}; if missing, the column \code{Freq} is looked for in \code{data}
 #' @return Data frame with one row per instances
 #' @examples
 #' Titanic
@@ -15,7 +16,22 @@
 #' titanic <- freq2raw(data=x[,1:3], freq=x$Freq)
 #' head(titanic)
 #' @export
-freq2raw <- function(data,freq){
+freq2raw <- function(data, freq){
+  
+  cl <- match.call()
+  if(missing(freq)){
+    freq <- data$Freq
+    data <- data[,-which(colnames(data) == 'Freq')]
+  } else{
+    mfrq <- which(names(cl) == 'freq')
+    if(length(mfrq) != 1) stop('Error with freq argument')
+    frq <- as.character(cl[mfrq])
+    if(frq %in% colnames(data)){
+      tmp <- data[, frq]
+      data <- data[,-which(colnames(data) == frq)]
+      freq <- tmp
+    } else if(!is.vector(freq)) stop('Error with freq argument')
+  }
   
   if(length(freq)!=NROW(data)) 
      stop('Frequency length does not match data')

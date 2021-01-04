@@ -9,7 +9,7 @@
 #' 
 #' @param xi Data matrix; expected to be numeric with elements ranging from 
 #'        zero to positive integral upper bound \code{L-1}.
-#' @param freq Frequency vector of number of times each row of \code{xi} 
+#' @param weights Frequency vector of number of times each row of \code{xi} 
 #'        is to be repeated. If \code{NULL}, defaults to 1. Expected
 #'        to be non-negative integers.
 #' @param qJ Matrix of logicals indicating which predictor pairs are
@@ -33,7 +33,7 @@
 #' @param tolerance Upper bound for fractional changes in pseduo-likelihood
 #'        values before termiating iteration in \code{'pseudo'}.
 #' @param verbose Verbosity level.
-#' @param prior.count Use prior count of 1 for \code{method = 'mf'} to reduce
+#' @param prior.count Prior count for \code{method = 'mf'} to reduce
 #'        numerical instability.
 #' @param naive Naive Bayes inference. Equivalent to \code{method = 'mf'} together
 #'        with \code{eps = 0}.
@@ -61,10 +61,10 @@
 #' points(x=unlist(par$J), y=unlist(mf$J), col='green')
 #' @export
 
-mlestimate <- function(xi, freq=NULL, qJ=NULL, method='pseudo', 
+mlestimate <- function(xi, weights=NULL, qJ=NULL, method='pseudo', 
                        L=NULL, lambda=1e-5, lambdah=0, symmetrize=TRUE, eps=0.9,
                        nprint=100, itmax=10000, tolerance=1e-5, verbose=1,
-                       prior.count=TRUE, naive=FALSE, lz.half=FALSE){
+                       prior.count=1, naive=FALSE, lz.half=FALSE){
   
   if(is.null(lambdah))
     lambdah <- lambda
@@ -87,19 +87,14 @@ mlestimate <- function(xi, freq=NULL, qJ=NULL, method='pseudo',
     L <- L-1
   }
   
-  if(naive){
-    method <- 'mf'
-    eps <- 0
-  }
-  
   xi <- as.matrix(xi)
   if(!is.numeric(xi[1,1]) | min(xi)<0) 
     stop('Input data to mlestimate must be numeric and non-negative')
   
   nsample <- NROW(xi)
-  if(is.null(freq)) freq <- rep(1L, nsample)
-  else if(length(freq)!=nsample) 
-    stop('Length of freq does not match data')
+  if(is.null(weights)) weights <- rep(1L, nsample)
+  else if(length(weights)!=nsample) 
+    stop('Length of weights does not match data')
   
   if(method=='pseudo'){
     Lambda <- c(lambda, lambdah)
@@ -109,13 +104,13 @@ mlestimate <- function(xi, freq=NULL, qJ=NULL, method='pseudo',
     Verbose <- c(verbose)
     Lzhalf <- c(lz.half)
     Naive <- c(naive)
-    theta <- pseudo_mle(xi, freq, qJ, L, Lambda, Nprint, Itmax, Tol, 
+    theta <- pseudo_mle(xi, weights, qJ, L, Lambda, Nprint, Itmax, Tol, 
                         Naive, Verbose, Lzhalf)
     L <- theta$L
   }
   else if(method=='mf'){
     Eps <- c(eps)
-    theta <- mfwrapper(xi, freq, qJ, L, Eps)
+    theta <- mfwrapper(xi, weights, qJ, L, Eps, prior.count)
   }
   else stop('unknown method in mlestimate')
 
@@ -124,6 +119,7 @@ mlestimate <- function(xi, freq=NULL, qJ=NULL, method='pseudo',
   for(i in seq_len(m)) J[[i]] <- vector('list',m)
   for(i in seq(1,m)){
     Li <- L[i]
+    if(naive) next()
     for(j in seq(i,m)){
       Lj <- L[j]
       x <- matrix(theta$J[[i]][[j]], nrow=Li, ncol=Lj, byrow=TRUE)

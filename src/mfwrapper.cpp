@@ -4,8 +4,8 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-List mfwrapper(NumericMatrix xi, IntegerVector freq, NumericMatrix qJ,
-               IntegerVector Lv, NumericVector Eps){
+List mfwrapper(NumericMatrix xi, IntegerVector weights, NumericMatrix qJ,
+               IntegerVector Lv, NumericVector Eps, NumericVector priorCount){
   
   int n = xi.nrow();
   int m = xi.ncol();
@@ -19,7 +19,7 @@ List mfwrapper(NumericMatrix xi, IntegerVector freq, NumericMatrix qJ,
   
   std::vector<int> frq(n);
   for(int k=0; k<n; k++)
-    frq[k] = freq(k);
+    frq[k] = weights(k);
   
   int mL=L.size();
   std::vector<std::vector<double> > hp(mL);
@@ -28,7 +28,8 @@ List mfwrapper(NumericMatrix xi, IntegerVector freq, NumericMatrix qJ,
   double eps = Eps[0];
   double lkl = 0;
   double lnz = 0;
-  invC(sv, frq, L, lkl, lnz, hp, Jp, eps);
+  double priorcount = priorCount(0);
+  invC(sv, frq, L, lkl, lnz, hp, Jp, eps, priorcount);
   
   std::vector<std::vector<double> > h(m);
   std::vector<std::vector<std::vector<double> > > J(m);

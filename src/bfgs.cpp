@@ -181,7 +181,7 @@ void dlnl_psl(const gsl_vector *v,void *params,gsl_vector *df){   // first deriv
   for(int k=0;k<nind;k++){
     vector<double> peff(L[i0]);
     double lz=0;
-    pan3(peff, nsnp, i0, L, (par->ai)[k], h1, J1, lz, par->naive);
+    pan3(peff, nsnp, i0, L, (par->ai)[k], h1, J1, par->naive, par->lzhalf);
     for(int l0=0;l0<L[i0];l0++){
       double f=peff[l0]*(par->frq)[k]/wsum;
       s1[l0]+= f;
@@ -244,7 +244,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   vector<double> f1(nsnp);
   vector<vector<double> > f2(nsnp);
 
-  f12(i0, ai, frq, f1, f2, L, naive, false);
+  f12(i0, ai, frq, f1, f2, L, naive, 0);
 
   const gsl_multimin_fdfminimizer_type *T;
   gsl_multimin_fdfminimizer *s;
@@ -318,7 +318,7 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
 
 void f12(int i0, const vector<vector<short> > &si, 
          const vector<int> &frq, vector<double> &f1, vector<vector<double> > &f2, 
-         const vector<short> &L, bool naive, bool pcount){
+         const vector<short> &L, bool naive, double pcount){
 
   int n = si.size();
   int m = si[0].size();
@@ -326,20 +326,16 @@ void f12(int i0, const vector<vector<short> > &si,
   f1.resize(Li0);
   f2.resize(m);
 
-  for(int l=0; l<Li0; l++){
-    f1[l]=0;
-    if(pcount)
-      f1[l] += 1.0/(1+Li0);
-  }
+  for(int l=0; l<Li0; l++)
+    f1[l] = pcount/(1+Li0);
+  
   if(!naive){
     for(int i=0; i<m; i++){
       int Li = L[i];
       f2[i].resize(Li0*Li);
       for(int l0=0; l0<Li0; l0++) for(int l1=0; l1<Li; l1++){
         int id = Li*l0+l1;
-        f2[i][id]=0;
-        if(pcount)
-          f2[i][id] += (i==i0 ? 1.0/(Li0+1) : 1.0/(Li0+1)/(Li+1));
+        f2[i][id]= (i==i0 ? pcount/(Li0+1) : pcount/(Li0+1)/(Li+1));
       }
     }
   }
@@ -359,7 +355,7 @@ void f12(int i0, const vector<vector<short> > &si,
     }
   }
   
-  double nc = pcount ? wsum+1 : wsum;
+  double nc = wsum + pcount;
   for(int l0=0; l0<f1.size(); l0++){ 
     f1[l0]/=nc;
     if(naive) continue;
