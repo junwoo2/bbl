@@ -1219,27 +1219,6 @@ specificity levels one would get when scanning a genomic segment using
 a trained model for detection of a binding site to within resolution of
 $\sim 3$~base pairs.
 
-We analyzed 684 data sets with at least 30 sequences from JASPAR database 
-of varying sample
-sizes and segment lengths with the same protocol. Differences between fully
-optimized AUC scores and those from non-interacting models (naive Bayes) were
-most pronounced above the intermediate range of AUC (Fig.~\ref{fig:tfbs}).
-
-\setkeys{Gin}{width=0.6\textwidth}
-\begin{figure}[t!]
-\centering
-\includegraphics[scale=1]{tfbs}
-\caption{\small 
-AUC scores of \pkg{bbl} model trained on 684 transcription factor binding site
-sequence data sets from JASPAR \citep{jaspar2018} under the same protocol as 
-in Fig.~\ref{fig:jaspar}. Naive Bayes (NB; mean field
-with $\epsilon=0$) and full mean field (MF) results are compared.
-The symbol colors show the segment length of each
-binding site data (color-map in legend).
-}
-\label{fig:tfbs}
-\end{figure}
-
 \section{Summary} \label{sec:summary}
 We introduced a user-friendly \proglang{R} package \pkg{bbl}, 
 implementing general Boltzmann Bayes classifiers applicable to 
