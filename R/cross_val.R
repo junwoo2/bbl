@@ -35,13 +35,13 @@
 #' @param storeOpt Store the optimal fitted object of class \code{\link{bbl}}.
 #' @param ... Other parameters to \code{\link{mlestimate}}.
 #' @return Object of class \code{cv.bbl} extending \code{\link{bbl}}, a list
-#'         with extra components
-#'         \item{regstar}{Value of regularization parameter, \code{lambda}
-#'         and \code{eps} for \code{method='pseudo'} and \code{method='mf'},
-#'         respectively, at which the accuracy score is maximized}
-#'         \item{maxscore}{Value of maximum accuracy}
-#'         \item{cvframe}{Data frame of regularization parameters and scores scanned.
-#'             If \code{use.auc=TRUE}, also contains 95% c.i.}
+#'         with extra components:  
+#'         \code{regstar}, Value of regularization parameter, \code{lambda} and \code{eps} 
+#'         for \code{method='pseudo'} and \code{method='mf'},respectively, 
+#'         at which the accuracy score is maximized; 
+#'         \code{maxscore}, Value of maximum accuracy; 
+#'         \code{cvframe}, Data frame of regularization parameters and scores scanned. 
+#'         If \code{use.auc=TRUE}, also contains 95% c.i.
 #' @examples
 #' set.seed(513)
 #' m <- 5

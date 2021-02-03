@@ -61,7 +61,14 @@ accuracy will be used as score.}
 \item{...}{Other parameters to \code{\link{mlestimate}}.}
 }
 \value{
-
+Object of class \code{cv.bbl} extending \code{\link{bbl}}, a list
+        with extra components:  
+        \code{regstar}, Value of regularization parameter, \code{lambda} and \code{eps} 
+        for \code{method='pseudo'} and \code{method='mf'},respectively, 
+        at which the accuracy score is maximized; 
+        \code{maxscore}, Value of maximum accuracy; 
+        \code{cvframe}, Data frame of regularization parameters and scores scanned. 
+        If \code{use.auc=TRUE}, also contains 95% c.i.
 }
 \description{
 Run multiple fittings of \code{bbl} model with training/validation
