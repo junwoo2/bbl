@@ -8,6 +8,7 @@
 %% recommended packages
 \usepackage{thumbpdf,lmodern,amsmath,bbm}
 \DeclareMathOperator*{\argmax}{arg\:max}
+\DeclareMathOperator{\Tr}{Tr}
 
 %% another package (only for this demo article)
 %\usepackage{framed}
@@ -99,8 +100,9 @@ via maximum likelihood,
 {\hat \Theta} = \argmax_\Theta \left[\ln P({\bf x},y|\Theta)\right],
 \end{equation}
 to find parameters $\Theta$. Regression-based methods use 
-$P({\bf x},y)=P(y|{\bf x})P({\bf x})\simeq P(y|{\bf x})$. Their advantages include
-the wealth of information provided for significance of fit coefficients from rigorous formal results.
+$P({\bf x},y)=P(y|{\bf x})P({\bf x})\approx P(y|{\bf x})$. 
+Many rigorous formal results known for regression coefficients facilitate
+interpretation of their significance.
 An alternative is to use $P({\bf x},y)=P({\bf x}|y)P(y)$ and fit $P({\bf x}|y)$. 
 Since $y$ is low-dimensional, this approach could capture extra
 information not accessible from regression when there are many covarying predictors.
@@ -110,7 +112,7 @@ Examples include linear and quadratic discriminant analyses
 is the simplest approach, where the covariance among ${\bf x}$ is ignored 
 via
 \begin{equation}
-P({\bf x}|y)\simeq \prod_i P(x_i|y)
+P({\bf x}|y)\approx \prod_i P(x_i|y)
 \label{eq:nbayes}
 \end{equation}
 with ${\bf x}=(x_1,\cdots,x_m)$.
@@ -235,7 +237,7 @@ where parameter superscripts were omitted because response group is not present.
 One option for fitting Eq.~(\ref{eq:pxy}) to data is pseudo-likelihood maximization \citep{besag}:
 \begin{equation}
 L_y-n_y\ln p_y=\sum_{k\in\mathbbm{K}_y} w_k\ln P({\bf x}^k|y)
-\simeq \sum_{k\in \mathbbm{K}_y} 
+\approx \sum_{k\in \mathbbm{K}_y} 
 w_k\sum_i \ln P_i(x_i^k|y,x_{j\backslash i}^k)
 \equiv \sum_i L_{iy},
 \label{eq:Ly2}
@@ -329,15 +331,16 @@ i.e., negative inverse of the covariance matrix,
 \label{eq:Cij}
 \end{equation}
 Equation~(\ref{eq:mf1}) can be interpreted as treating discrete ${\bf x}$ as if it were multivariate normal:
-Eq.~(\ref{eq:pxy}) would then be the counterpart of the multivariate normal p.d.f. with 
+Eq.~(\ref{eq:pxy}) would then be the counterpart of the multivariate normal 
+probability density function with 
 $-J_{ij}^{(y)}(x,x^\prime)$ corresponding to the precision matrix.
 In real data where $n \sim {\rm d.f.}$ or less, the matrix inversion is often ill-behaved. It is regularized by 
 interpolation of $\mathsf{C}^{(y)}$ 
 between non-interacting (naive Bayes)
 ($\epsilon=0$) and fully interacting limits ($\epsilon=1$):
 \begin{equation}
-\mathsf{C}^{(y)}  \leftarrow \mathsf{\bar C}^{(y)}=(1-\epsilon)\frac{{\rm Tr}\:\mathsf{C}^{(y)}}
-{{\rm Tr}\:\mathsf{I}}{\mathsf I} + \epsilon\mathsf{C}^{(y)},
+\mathsf{C}^{(y)}  \leftarrow \mathsf{\bar C}^{(y)}=(1-\epsilon)\frac{\Tr{\mathsf{C}^{(y)}}}
+{\Tr{\mathsf{I}}}{\mathsf I} + \epsilon\mathsf{C}^{(y)},
 \end{equation}
 where $\mathsf{I}$ is the identity matrix of the same dimension as $\mathsf{C}^{(y)}$.
 The parameter $\epsilon$ serves as a good handle for probing the relative importance of interaction 
@@ -566,7 +569,7 @@ also consider penalized logistic regression fit using \pkg{glmnet}
 if(!require('glmnet'))
   install.packages('glmnet')
 library('glmnet')
-xdat <- data.matrix(dtrain[, 1:3])
+xdat <- model.matrix(~ Class + Sex + Age, data = dtrain)[,-1]
 y <- dtrain[, 4]
 gnet <- cv.glmnet(x = xdat, y = y, family = 'binomial', alpha = 1,
   nfolds = 5, type.measure = 'auc')
@@ -1121,8 +1124,8 @@ accuracy
 @
 %
 
-Since \code{mnist} dropped a subset of original predictors, the test data must
-be filtered accordingly. Note the increase in accuracy compared to 
+The test data must have the same set of predictors as those in
+\code{mnist}. Note the increase in accuracy compared to 
 cross-validation value because of the use of full training data. 
 
 We performed similar cross-validation and test analyses of the full MNIST data 
@@ -1264,8 +1267,10 @@ sequences) combine to determine class identity, as in transcription factor
 binding motifs (Section~\ref{sec:tfbs}). 
 Among the two options for inference methods, mean field
 (\code{method = `mf'}) is faster but can become memory intensive for models 
-with a large number of predictors. Pseudo-likelihood maximization 
-(\code{method = `pseudo'}) is slower but usually provides better performance.
+with a large number of predictors. 
+Pseudo-likelihood maximization
+(\code{method = "pseudo"}) is slower but usually provides better performance
+measured in cross-validation accuracy or AUC.
 
 %% -- Optional special unnumbered sections -------------------------------------
 

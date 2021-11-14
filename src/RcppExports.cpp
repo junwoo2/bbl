@@ -5,6 +5,11 @@
 
 using namespace Rcpp;
 
+#ifdef RCPP_USE_GLOBAL_ROSTREAM
+Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
+Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
+#endif
+
 // mfwrapper
 List mfwrapper(NumericMatrix xi, IntegerVector weights, NumericMatrix qJ, IntegerVector Lv, NumericVector Eps, NumericVector priorCount);
 RcppExport SEXP _bbl_mfwrapper(SEXP xiSEXP, SEXP weightsSEXP, SEXP qJSEXP, SEXP LvSEXP, SEXP EpsSEXP, SEXP priorCountSEXP) {

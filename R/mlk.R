@@ -63,7 +63,7 @@
 
 mlestimate <- function(xi, weights=NULL, qJ=NULL, method='pseudo', 
                        L=NULL, lambda=1e-5, lambdah=0, symmetrize=TRUE, eps=0.9,
-                       nprint=100, itmax=10000, tolerance=1e-5, verbose=1,
+                       nprint=100, itmax=100000, tolerance=1e-4, verbose=1,
                        prior.count=1, naive=FALSE, lz.half=FALSE){
   
   if(is.null(lambdah))

@@ -180,7 +180,7 @@ void dlnl_psl(const gsl_vector *v,void *params,gsl_vector *df){   // first deriv
   
   for(int k=0;k<nind;k++){
     vector<double> peff(L[i0]);
-    double lz=0;
+//  double lz=0;
     pan3(peff, nsnp, i0, L, (par->ai)[k], h1, J1, par->naive, par->lzhalf);
     for(int l0=0;l0<L[i0];l0++){
       double f=peff[l0]*(par->frq)[k]/wsum;
@@ -272,7 +272,8 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
   my_func.params=&par;
   gsl_vector_set_zero(x);  // initial guess
 
-  gsl_multimin_fdfminimizer_set(s,&my_func,x,0.1,0.1);
+//  gsl_multimin_fdfminimizer_set(s,&my_func,x,0.1,0.1);
+  gsl_multimin_fdfminimizer_set(s,&my_func,x,0.1,1e-3);
   iter=0;
   do{
       iter++;
@@ -286,10 +287,11 @@ double lpr_psl(int i0, const vector<vector<short> > &ai,
       }
       status=gsl_multimin_test_gradient(s->gradient,Tol);
   }while(status==GSL_CONTINUE && iter< Imax); 
-  if(iter==Imax)
+  if(iter==Imax){
     Rcpp::Rcerr << "BFGS2 iteration failed to converge after " 
          << Imax << " iterations\n";
-    if(verbose > 0) Rcpp::Rcout << "  Predictor " << i0+1 
+  }
+  if(verbose > 0) Rcpp::Rcout << "  Predictor " << i0+1 
          << ": " << iter
          << " iterations, likelihood = " << s->f << endl;
 
@@ -356,13 +358,13 @@ void f12(int i0, const vector<vector<short> > &si,
   }
   
   double nc = wsum + pcount;
-  for(int l0=0; l0<f1.size(); l0++){ 
+  for(unsigned int l0=0; l0<f1.size(); l0++){ 
     f1[l0]/=nc;
     if(naive) continue;
     for(int j=0; j<m; j++){
       int Lj = L[j];
       if(i0==j){
-        for(int l1=0; l1<Lj; l1++){
+        for(unsigned int l1=0; l1<Lj; l1++){
           if(l0==l1)
             f2[j][Lj*l0+l1]=f1[l0];
           else
@@ -370,7 +372,7 @@ void f12(int i0, const vector<vector<short> > &si,
         }
       }
       else{
-        for(int l1=0; l1<Lj; l1++)
+        for(unsigned int l1=0; l1<Lj; l1++)
           f2[j][Lj*l0+l1]/=nc;
       }
     }
