@@ -1156,7 +1156,7 @@ par(oldpar)
 \setkeys{Gin}{width=0.6\textwidth}
 \begin{figure}[t!]
 \centering
-\includegraphics[scale=1]{mnist_map}
+\includegraphics[scale=1]{digits}
 \caption
 {\small Maximum probability configurations of digits ($0,\cdots,9$) 
 estimated from \code{bbl} fit coefficients using Gibbs sampling.}
