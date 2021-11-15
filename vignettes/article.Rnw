@@ -1286,7 +1286,7 @@ were obtained using \proglang{R}~\Sexpr{paste(R.Version()[6:7], collapse = ".")}
 at \url{https://CRAN.R-project.org} and Bioconductor at
 \url{https://bioconductor.org}.
 
-\bibliography{refs}
+\bibliography{ref}
 
 %% -- Appendix (if any) --------------------------------------------------------
 %% - After the bibliography with page break.
